@@ -50,15 +50,16 @@ int main(int argc, char **argv)
         FCU_connect_rate.sleep();
     }
 
-    // relative pose wrt home pose
-    hover_offset.position.x = 0;
-    hover_offset.position.y = 0;
-    hover_offset.position.z = 1.5;
+    // goal pose wrt home pose
+    ref_offset.position.x = 0;
+    ref_offset.position.y = 0;
+    ref_offset.position.z = 1.5;
 
+    ros::spin();
     return 0;
 }
 
-// Functions
+// ---------- Functions ----------- //
 
 // Pass along mav state info
 void stateCallback(const mavros_msgs::State::ConstPtr& msg){
@@ -75,16 +76,15 @@ void cmdloopCallback(const ros::TimerEvent& event) {
     }
 
     case MISSION_EXECUTION: {
-      ROS_INFO("Mission.");
-      double x_diff = hover_pose.position.x - home_pose.position.x;
-      double y_diff = hover_pose.position.y - home_pose.position.y;
-      double z_diff = hover_pose.position.z - home_pose.position.z;
+      double x_diff = ref_pose.position.x - curr_pose.position.x;
+      double y_diff = ref_pose.position.y - curr_pose.position.y;
+      double z_diff = ref_pose.position.z - curr_pose.position.z;
       double pos_error = sqrt(pow(x_diff,2.) + pow(y_diff,2.) + pow(z_diff,2.)); // in meters
         
       if (pos_error > 0.01) {
-        hover_msg.header.stamp = ros::Time::now();
-        hover_msg.pose = home_pose;
-        pos_pub.publish(hover_msg);
+        ref_msg.header.stamp = ros::Time::now();
+        ref_msg.pose = ref_pose;
+        pos_pub.publish(ref_msg);
       } else {
         flight_state = LANDING;
       }
@@ -115,11 +115,13 @@ void mavposeCallback(const geometry_msgs::PoseStamped &msg) {
     home_pose = msg.pose;
     ROS_INFO_STREAM("Home pose initialized to: " << home_pose);
     
-    hover_pose = home_pose;
-    hover_pose.position.x += hover_offset.position.x;
-    hover_pose.position.y += hover_offset.position.y;
-    hover_pose.position.z += hover_offset.position.z;
+    geometry_msgs::Pose temp = home_pose;
+    temp.position.x += ref_offset.position.x;
+    temp.position.y += ref_offset.position.y;
+    temp.position.z += ref_offset.position.z;
+    ref_pose = temp;
   }
+  curr_pose = msg.pose;
 }
 
 void simInitCallback(const ros::TimerEvent &event) {
