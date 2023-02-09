@@ -19,9 +19,10 @@ mavros_msgs::State current_state;
 mavros_msgs::CommandBool arm_cmd;
 mavros_msgs::SetMode offb_set_mode;
 geometry_msgs::Pose home_pose;
-geometry_msgs::PoseStamped hover_msg;
-geometry_msgs::Pose hover_pose;
-geometry_msgs::Pose hover_offset;
+geometry_msgs::PoseStamped ref_msg;
+geometry_msgs::Pose ref_pose;
+geometry_msgs::Pose ref_offset;
+geometry_msgs::Pose curr_pose;
 
 ros::Time last_request;
 
