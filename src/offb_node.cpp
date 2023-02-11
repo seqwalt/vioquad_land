@@ -82,7 +82,7 @@ void OffbCtrl::cmdloopCallback(const ros::TimerEvent& event) {
       geometry_msgs::PoseStamped takeoff_msg;
       takeoff_msg.header.stamp = ros::Time::now();
       takeoff_msg.pose = home_pose;
-      takeoff_msg.pose.position.z += 1.0;
+      takeoff_msg.pose.position.z += 0.5;
       double x_diff = takeoff_msg.pose.position.x - curr_pose.position.x;
       double y_diff = takeoff_msg.pose.position.y - curr_pose.position.y;
       double z_diff = takeoff_msg.pose.position.z - curr_pose.position.z;
@@ -107,7 +107,7 @@ void OffbCtrl::cmdloopCallback(const ros::TimerEvent& event) {
         cout << "total error: " << pos_error << endl << endl;
         print_request = ros::Time::now();
       }
-      if (pos_error > 0.06) {
+      if (pos_error > 0.08) {
         ref_msg.header.stamp = ros::Time::now();
         ref_msg.pose = ref_pose;
         pos_pub.publish(ref_msg);
