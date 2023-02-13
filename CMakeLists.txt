@@ -16,15 +16,22 @@ find_package(catkin REQUIRED COMPONENTS
   tf2_geometry_msgs
   tf2
   mavros_msgs
-  geometry_msgs)
+  geometry_msgs
+  message_generation
+)
 
 find_package(Eigen3 3.3 REQUIRED NO_MODULE)
 
+## Setup custom message
+add_message_files(FILES msg/FlatOutputs.msg)
+
+generate_messages(DEPENDENCIES std_msgs geometry_msgs)
+
 ## Declare a catkin package
-catkin_package()
+catkin_package(CATKIN_DEPENDS message_runtime)
 
 ## Include directories and add executable
-add_executable(offb_node src/offb_node.cpp ${HEADER_FILES})
+add_executable(mavros_cmd_node src/mavros_cmd_node.cpp include/${HEADER_FILES})
 
-target_link_libraries(offb_node Eigen3::Eigen ${catkin_LIBRARIES})
+target_link_libraries(mavros_cmd_node Eigen3::Eigen ${catkin_LIBRARIES})
 include_directories(include ${catkin_INCLUDE_DIRS})
