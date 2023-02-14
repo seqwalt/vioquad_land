@@ -27,7 +27,6 @@ class TrajectoryGen{
     public:
         ros::Publisher traj_pub;
         ros::Timer traj_timer;
-        ros::Timer startPose_timer;
         
         quad_control::FlatOutputs ref;
         Eigen::MatrixXd trajMatrix;
@@ -67,10 +66,10 @@ class TrajectoryGen{
         }
         
         bool sendTrajCallback(std_srvs::Trigger::Request &req, std_srvs::Trigger::Response &res){
-            startPose_timer.start();
-            if(startPose_timer.hasStarted()){
+            traj_timer.start();  // start publishing the trajectory
+            if(traj_timer.hasStarted()){
                 res.success = true;
-                traj_timer.start(); // start publishing the trajectory
+                ROS_INFO_STREAM("Publishing trajectory.");
             }
             return true;
         }
@@ -81,6 +80,7 @@ class TrajectoryGen{
             res.position.y = trajMatrix(0,2);
             res.position.z = trajMatrix(0,3);
             res.yaw        = trajMatrix(0,4);
+            ROS_INFO_STREAM("Initial trajectory pose sent.");
             return true;
         }
         

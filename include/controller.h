@@ -15,10 +15,14 @@ using namespace std;
 
 class Controller {
     public:
-        struct ControlInputs {      // Control inputs to be sent to FCU through mavros
+        struct AttitudeInputs {      // Control inputs to be sent to FCU through mavros
             geometry_msgs::PoseStamped attitude;
             geometry_msgs::TwistStamped cmd_vel;
             mavros_msgs::Thrust norm_thrust;
+        };
+        
+        struct PoseInputs {         // Control inputs to be sent to FCU through mavros
+            geometry_msgs::PoseStamped pose;
         };
         
         struct FlatReference {      // Tracking reference (for using FlatOutputs message)
@@ -43,8 +47,18 @@ class Controller {
         double thrust_const1 = 0.05;
         double thrust_const2 = 0.1;
         
+        // Position + heading tracking controller
+        // Directly feed through the setpoint positions and heading (yaw)
+        void PosYaw(PoseInputs& inputs, const FlatReference& ref) {
+            inputs.pose.pose.position = ref.position;
+            
+            Eigen::AngleAxisd temp_angAxis(ref.yaw, Eigen::Vector3d(0,0,1));  // rotate about z-axis
+            Eigen::Quaterniond quat_ref(temp_angAxis);
+            inputs.pose.pose.orientation = tf2::toMsg(quat_ref);
+        }
+        
         // Geometric tracking controller
-        void Geometric(ControlInputs& inputs, const FlatReference& ref, const State& cur) {
+        void Geometric(AttitudeInputs& inputs, const FlatReference& ref, const State& cur) {
             // Generate control inputs to use with mavros, using the paper:
             // Geometric Tracking Control of a Quadrotor UAV on SE(3) (Lee et al., 2010)
             // Implementation inspired by https://github.com/Jaeyoung-Lim/mavros_controllers
@@ -92,7 +106,12 @@ class Controller {
         
         template <class T>
         Eigen::Quaterniond quatToEigen(const T& msg){
-            return Eigen::Quaterniond(msg.x, msg.y, msg.z, msg.w);
+            Eigen::Quaterniond q;
+            q.w() = msg.w;
+            q.x() = msg.x;
+            q.y() = msg.y;
+            q.z() = msg.z;
+            return q;
         };
         
     private:
