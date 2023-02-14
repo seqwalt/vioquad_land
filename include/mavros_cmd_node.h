@@ -81,7 +81,10 @@ class MavrosCmd {
                         traj_request = ros::Time::now();
                         ROS_INFO("Waiting for initial trajectory pose");
                         if (init_traj_client.call(init_traj) && init_traj.response.success) {
-                            ROS_INFO("Recieved initial trajectory pose. Commencing takeoff...");
+                            // ROS_INFO("Received initial trajectory pose. Commencing takeoff...");
+                            ROS_INFO("Received.");
+                            ROS_INFO_STREAM("Initial traj position: " << init_traj.response.position);
+                            ROS_INFO_STREAM("Initial traj yaw     : " << init_traj.response.yaw);
                             flight_state = TAKEOFF;
                         }
                     }
@@ -98,6 +101,7 @@ class MavrosCmd {
                     takeoff_msg.header.stamp = ros::Time::now();
                     takeoff_msg.pose.orientation = tf2::toMsg(takeoff_quat);
                     takeoff_msg.pose.position = takeoff_pos;
+                    takeoff_msg.pose.position.z = takeoff_pos.z + home_pose.position.z;
                     
                     // Error
                     double x_diff = takeoff_msg.pose.position.x - curPose.position.x;
@@ -108,13 +112,19 @@ class MavrosCmd {
                     Eigen::Quaterniond curQuat = ctrl.quatToEigen(curPose.orientation);
                     double curYaw = mavros::ftf::quaternion_get_yaw(curQuat);
                     double yaw_error = abs(takeoff_yaw - curYaw);
-                    
-                    if (z_diff > 0.2){
+                    cout << abs(z_diff) << endl;
+                    /*
+                    if (abs(z_diff) > 0.1){
+                        dispOnce("ZDIFFFFFFF", sw1);
                         geometry_msgs::PoseStamped vert_takeoff_msg;
+                        vert_takeoff_msg.header.stamp = ros::Time::now();
                         vert_takeoff_msg.pose = home_pose;
                         vert_takeoff_msg.pose.position.z += 1;
                         pos_pub.publish(vert_takeoff_msg);
-                    } else if (pos_error > 0.25 || yaw_error > 0.1){
+                    } else
+                    */
+                    if (pos_error > 0.25 || yaw_error > 0.2){
+                        dispOnce("pos_eROROR", sw2);
                         pos_pub.publish(takeoff_msg);
                     } else {
                         pos_pub.publish(takeoff_msg);
@@ -264,6 +274,14 @@ class MavrosCmd {
                 wait_rate.sleep();
             }
         };
+        
+        bool sw1, sw2, sw3 = true;
+        void dispOnce(const string &str, bool &sw){
+            if (sw){
+                cout << str << endl;
+                sw = false;
+            }
+        }
 };
 
 

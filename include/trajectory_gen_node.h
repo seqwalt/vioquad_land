@@ -77,18 +77,18 @@ class TrajectoryGen{
         
         bool initRefCallback(quad_control::InitTraj::Request &req, quad_control::InitTraj::Response &res){
             res.success = true;
-            ref.position.x = trajMatrix(0,1);
-            ref.position.y = trajMatrix(0,2);
-            ref.position.z = trajMatrix(0,3);
-            ref.yaw        = trajMatrix(0,4);
+            res.position.x = trajMatrix(0,1);
+            res.position.y = trajMatrix(0,2);
+            res.position.z = trajMatrix(0,3);
+            res.yaw        = trajMatrix(0,4);
             return true;
         }
         
-        Eigen::MatrixXd csvToEigen(const std::string& filename)
+        void csvToEigen(const std::string& filename)
         {
             // find file
             std::ifstream file(filename);
-            assert(file);// && "File couldn't be opened");
+            assert(file && "File couldn't be opened");
 
             // store file data in a vector of vectors
             std::vector<std::vector<double>> data;
@@ -106,18 +106,16 @@ class TrajectoryGen{
             // transfer the data to an Eigen matrix
             const int num_rows = data.size();
             const int num_cols = 18;
-            Eigen::MatrixXd mat(num_rows, num_cols);
+            trajMatrix = Eigen::MatrixXd(num_rows, num_cols);
             for (int i = 0; i < num_rows; ++i) {
                 for (int j = 0; j < num_cols; ++j) {
-                    mat(i, j) = data[i][j];
+                    trajMatrix(i, j) = data[i][j];
                 }
             }
             
             // start trajectory slightly off the ground
-            mat.col(3) = mat.col(3).array() + z_offset; // add an offset to the z column (column 3)
+            trajMatrix.col(3) = trajMatrix.col(3).array() + z_offset; // add an offset to the z column (column 3)
             numRows = static_cast<unsigned int>(num_rows);
-            
-            return mat;
         }
 };
 

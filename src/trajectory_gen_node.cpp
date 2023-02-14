@@ -16,7 +16,7 @@ int main(int argc, char **argv)
     
     // Get trajectory
     string trajFileName = ".../traj/traj_fig8_20s.csv";
-    mavTraj.trajMatrix = mavTraj.csvToEigen(trajFileName); // store trajectory in an Eigen matrix
+    mavTraj.csvToEigen(trajFileName); // store trajectory in an Eigen matrix
     
     // Trajectory publisher
     mavTraj.traj_pub = nh.advertise<quad_control::FlatOutputs>("reference/flatoutputs", 1);
