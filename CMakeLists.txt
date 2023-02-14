@@ -11,7 +11,6 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   rospy
   std_msgs
-  genmsg
   nav_msgs
   tf2_geometry_msgs
   tf2
@@ -19,13 +18,16 @@ find_package(catkin REQUIRED COMPONENTS
   mavros_msgs
   mavlink
   geometry_msgs
+  genmsg
+  gencpp
   message_generation
 )
 
 find_package(Eigen3 3.3 REQUIRED NO_MODULE)
 
-## Setup custom message
+## Setup custom message and services
 add_message_files(FILES FlatOutputs.msg)
+add_service_files(FILES InitTraj.srv)
 
 generate_messages(
     DEPENDENCIES
@@ -41,7 +43,11 @@ catkin_package(
 
 ## Include directories and add executable
 add_executable(mavros_cmd_node src/mavros_cmd_node.cpp)
-
 add_dependencies(mavros_cmd_node ${catkin_EXPORTED_TARGETS})
 target_link_libraries(mavros_cmd_node Eigen3::Eigen ${catkin_LIBRARIES})
+
+add_executable(trajectory_gen_node src/trajectory_gen_node.cpp)
+add_dependencies(trajectory_gen_node ${catkin_EXPORTED_TARGETS})
+target_link_libraries(trajectory_gen_node Eigen3::Eigen ${catkin_LIBRARIES})
+
 include_directories(include ${catkin_INCLUDE_DIRS})

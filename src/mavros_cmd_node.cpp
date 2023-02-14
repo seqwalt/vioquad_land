@@ -14,32 +14,39 @@ int main(int argc, char **argv)
 
     MavrosCmd mavCmd;
     
-    // goal pose wrt home pose
-    mavCmd.ref_offset.position.x = 1;
-    mavCmd.ref_offset.position.y = 1;
-    mavCmd.ref_offset.position.z = 1.5;
-    
     // Subscribers
-    mavCmd.state_sub = nh.subscribe
-            ("mavros/state", 1, &MavrosCmd::stateCallback, &mavCmd); // http://wiki.ros.org/roscpp_tutorials/Tutorials/UsingClassMethodsAsCallbacks
+    mavCmd.mode_sub = nh.subscribe
+            ("mavros/state", 1, &MavrosCmd::modeCallback, &mavCmd); // http://wiki.ros.org/roscpp_tutorials/Tutorials/UsingClassMethodsAsCallbacks
     mavCmd.pose_sub = nh.subscribe
-            ("mavros/local_position/pose", 1, &MavrosCmd::mavposeCallback, &mavCmd, ros::TransportHints().tcpNoDelay());
-    
+            ("mavros/local_position/pose", 1, &MavrosCmd::mavPoseCallback, &mavCmd, ros::TransportHints().tcpNoDelay());
+    mavCmd.vel_sub = nh.subscribe
+            ("mavros/local_position/velocity", 1, &MavrosCmd::mavVelCallback, &mavCmd, ros::TransportHints().tcpNoDelay());
+    mavCmd.traj_sub = nh.subscribe
+            ("reference/flatoutputs", 1, &MavrosCmd::mavRefCallback, &mavCmd, ros::TransportHints().tcpNoDelay());
+
     // Publishers
     mavCmd.pos_pub = nh.advertise<geometry_msgs::PoseStamped>
             ("mavros/setpoint_position/local", 10);
-    
-    // Services        
-    mavCmd.arming_client = nh.serviceClient<mavros_msgs::CommandBool>
-            ("mavros/cmd/arming");
-    mavCmd.set_mode_client = nh.serviceClient<mavros_msgs::SetMode>
-            ("mavros/set_mode");
-    
+    mavCmd.att_pub = nh.advertise<geometry_msgs::PoseStamped>
+            ("mavros/setpoint_attitude/attitude", 1);
+    mavCmd.angVel_pub = nh.advertise<geometry_msgs::TwistStamped>
+            ("mavros/setpoint_attitude/cmd_vel", 1);
+    mavCmd.thrust_pub = nh.advertise<mavros_msgs::Thrust>
+            ("mavros/setpoint_attitude/thrust", 1);
+
+    // Service clients for changing modes    
+    mavCmd.arming_client = nh.serviceClient<mavros_msgs::CommandBool>("mavros/cmd/arming");
+    mavCmd.set_mode_client = nh.serviceClient<mavros_msgs::SetMode>("mavros/set_mode");
+    // Service client for requesting the starting position and heading of the trajectory
+    mavCmd.init_traj_client = nh.serviceClient<quad_control::InitTraj>("initial_reference");
+    // Service client for requesting that the trajectory be published by trajectory_gen_node
+    mavCmd.send_traj_client = nh.serviceClient<std_srvs::Trigger>("send_trajectory");
+
     // Timers
     bool autostart = false;
-    mavCmd.cmdloop_timer = nh.createTimer(ros::Duration(0.01), &MavrosCmd::cmdloopCallback, &mavCmd, false, autostart); // send commands at 100 HZ
+    mavCmd.cmdloop_timer = nh.createTimer(ros::Duration(0.01), &MavrosCmd::cmdLoopCallback, &mavCmd, false, autostart); // send commands at 100 HZ
     mavCmd.setup_timer = nh.createTimer(ros::Duration(1), &MavrosCmd::setupCallback, &mavCmd, false, autostart); // send commands at 1 HZ
-            
+
     // Parameters
     // TODO: Implement the sim_enable parameter along with launch file
     //nh_private_.param<bool>("enable_sim", mavCmd.sim_enable, true);
@@ -47,7 +54,7 @@ int main(int argc, char **argv)
     
     // wait for FCU connection
     ros::Rate FCU_connect_rate(5.0);
-    while(ros::ok() && !mavCmd.current_state.connected){
+    while(ros::ok() && !mavCmd.currentModes.connected){
         ros::spinOnce();
         FCU_connect_rate.sleep();
     }
