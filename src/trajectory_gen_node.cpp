@@ -15,7 +15,7 @@ int main(int argc, char **argv)
     TrajectoryGen mavTraj;
     
     // Get trajectory
-    string trajFileName = ".../traj/traj_fig8_20s.csv";
+    string trajFileName = "/home/sequoyah/Documents/Research/ARC_lab/VIO/vioquad_ws/src/quad_control/traj/traj_fig8_20s.csv";
     mavTraj.csvToEigen(trajFileName); // store trajectory in an Eigen matrix
     
     // Trajectory publisher

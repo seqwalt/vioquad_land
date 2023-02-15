@@ -112,8 +112,7 @@ class MavrosCmd {
                     Eigen::Quaterniond curQuat = ctrl.quatToEigen(curPose.orientation);
                     double curYaw = mavros::ftf::quaternion_get_yaw(curQuat);
                     double yaw_error = abs(takeoff_yaw - curYaw);
-                    cout << abs(z_diff) << endl;
-                    /*
+                    assert(abs(z_diff) > 0.1);
                     if (abs(z_diff) > 0.1){
                         dispOnce("ZDIFFFFFFF", sw1);
                         geometry_msgs::PoseStamped vert_takeoff_msg;
@@ -121,9 +120,7 @@ class MavrosCmd {
                         vert_takeoff_msg.pose = home_pose;
                         vert_takeoff_msg.pose.position.z += 1;
                         pos_pub.publish(vert_takeoff_msg);
-                    } else
-                    */
-                    if (pos_error > 0.25 || yaw_error > 0.2){
+                    } else if (pos_error > 0.25 || yaw_error > 0.2){
                         dispOnce("pos_eROROR", sw2);
                         pos_pub.publish(takeoff_msg);
                     } else {
