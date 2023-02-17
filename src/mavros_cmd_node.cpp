@@ -27,12 +27,14 @@ int main(int argc, char **argv)
     // Publishers
     mavCmd.pos_pub = nh.advertise<geometry_msgs::PoseStamped>
             ("mavros/setpoint_position/local", 10);
-    mavCmd.att_pub = nh.advertise<geometry_msgs::PoseStamped>
-            ("mavros/setpoint_attitude/attitude", 1);
-    mavCmd.angVel_pub = nh.advertise<geometry_msgs::TwistStamped>
-            ("mavros/setpoint_attitude/cmd_vel", 1);
-    mavCmd.thrust_pub = nh.advertise<mavros_msgs::Thrust>
-            ("mavros/setpoint_attitude/thrust", 1);
+    mavCmd.att_pub = nh.advertise<mavros_msgs::AttitudeTarget>
+            ("mavros/setpoint_raw/attitude", 1); // NOTE: setpoint_raw expects NED (while setpoint_attitude expects ENU)
+//     mavCmd.att_pub = nh.advertise<geometry_msgs::PoseStamped>
+//             ("mavros/setpoint_attitude/attitude", 1);
+//     mavCmd.angVel_pub = nh.advertise<geometry_msgs::TwistStamped>
+//             ("mavros/setpoint_attitude/cmd_vel", 1);
+//     mavCmd.thrust_pub = nh.advertise<mavros_msgs::Thrust>
+//             ("mavros/setpoint_attitude/thrust", 1);
 
     // Service clients for changing modes    
     mavCmd.arming_client = nh.serviceClient<mavros_msgs::CommandBool>("mavros/cmd/arming");
@@ -48,9 +50,22 @@ int main(int argc, char **argv)
     mavCmd.setup_timer = nh.createTimer(ros::Duration(1), &MavrosCmd::setupCallback, &mavCmd, false, autostart); // send commands at 1 HZ
 
     // Parameters
-    // TODO: Implement the sim_enable parameter along with launch file
-    //nh_private_.param<bool>("enable_sim", mavCmd.sim_enable, true);
-    mavCmd.sim_enable = true; // used in setupCallback
+    nh.param<string>("/mavros_cmd_node/ctrl_mode", mavCmd.ctrl_mode, "geometric");
+    nh.param<bool>("/mavros_cmd_node/enable_sim", mavCmd.sim_enable, true); // used in setupCallback
+    
+    nh.param<double>("/mavros_cmd_node/max_err_acc", mavCmd.ctrl.max_err_acc, 20.0);     // largest magnitude (K_pos*err_pos + K_vel*err_vel) can have
+    nh.param<double>("/mavros_cmd_node/thrust_const", mavCmd.ctrl.thrust_const, 0.05);   // normalized thrust = 
+    nh.param<double>("/mavros_cmd_node/thrust_offset", mavCmd.ctrl.thrust_offset, 0.1);  //          thrust_const * Acc_des + thrust_offset
+                                                                                         // normalized thrust means thrust that has magnitude in rng [0,1]
+    nh.param<double>("/mavros_cmd_node/Kpos_x", mavCmd.ctrl.Kpos_x, 12.0);
+    nh.param<double>("/mavros_cmd_node/Kpos_y", mavCmd.ctrl.Kpos_y, 12.0);
+    nh.param<double>("/mavros_cmd_node/Kpos_z", mavCmd.ctrl.Kpos_z, 10.0);
+    nh.param<double>("/mavros_cmd_node/Kvel_x", mavCmd.ctrl.Kvel_x, 3.0);
+    nh.param<double>("/mavros_cmd_node/Kvel_y", mavCmd.ctrl.Kvel_y, 3.0);
+    nh.param<double>("/mavros_cmd_node/Kvel_z", mavCmd.ctrl.Kvel_z, 3.3);
+    nh.param<double>("/mavros_cmd_node/Katt_x", mavCmd.ctrl.Katt_x, 20.0);   // ang_rate = K_att * err_att
+    nh.param<double>("/mavros_cmd_node/Katt_y", mavCmd.ctrl.Katt_y, 20.0);
+    nh.param<double>("/mavros_cmd_node/Katt_z", mavCmd.ctrl.Katt_z, 20.0);
     
     // wait for FCU connection
     ros::Rate FCU_connect_rate(5.0);

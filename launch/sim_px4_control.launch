@@ -1,0 +1,74 @@
+<launch>
+    <!-- MAVROS config -->
+    <arg name="fcu_url" default="udp://:14540@127.0.0.1:14557"/>
+    <arg name="gcs_url" default="" />
+    <arg name="fcu_protocol" default="v2.0" />
+    <arg name="respawn_mavros" default="false" />
+    
+    <!-- Vehicle config -->
+    <arg name="mav_name" default="iris"/>
+    <arg name="x" default="0"/>
+    <arg name="y" default="0"/>
+    <arg name="z" default="0"/>
+    
+    <!-- Gazebo config -->
+    <arg name="gazebo_simulation" default="true" />
+    <arg name="respawn_gazebo" default="false" />
+    <arg name="sdf" default="$(find mavlink_sitl_gazebo)/models/$(arg mav_name)/$(arg mav_name).sdf"/>
+    <arg name="world" default="$(find mavlink_sitl_gazebo)/worlds/empty.world"/>
+    
+    <!-- Controller config -->
+    <arg name="command_input" default="geometric" /> <!-- options: geometric, position -->
+    
+    <!-- Trajectory config -->
+    <arg name="traj_name" default="traj_fig8_20s"/>
+    
+    <!-- Controller node -->
+    <node pkg="quad_control" type="mavros_cmd_node" output="screen">
+        <param name="ctrl_mode" type="string" value="$(arg command_input)" />
+        <param name="enable_sim" value="$(arg gazebo_simulation)" />
+        
+        <param name="max_err_acc" value="20.0" />
+        <param name="thrust_const" value="0.05" />
+        <param name="thrust_offset" value="0.1" />
+        
+        <param name="Kpos_x" value="12.0" />
+        <param name="Kpos_y" value="12.0" />
+        <param name="Kpos_z" value="10.0" />
+        <param name="Kvel_x" value="3.0" />
+        <param name="Kvel_y" value="3.0" />
+        <param name="Kvel_z" value="3.3" />
+        <param name="Katt_x" value="20.0" />
+        <param name="Katt_y" value="20.0" />
+        <param name="Katt_z" value="20.0" />
+    </node>
+
+    <!-- Trajectory node -->
+    <node pkg="quad_control" type="trajectory_gen_node" output="screen">
+        <param name="trajectory_file" type="string" value="$(find quad_control)/traj/$(arg traj_name).csv" />
+    </node>
+
+    <!-- Launch rqt_reconfigure -->
+    <node pkg="rqt_reconfigure" type="rqt_reconfigure" output="screen" name="rqt_reconfigure" />
+
+    <!-- MAVROS -->
+    <include file="$(find mavros)/launch/px4.launch">
+        <!-- GCS link is provided by SITL -->
+        <arg name="gcs_url" value="(arg gcs_url)"/>
+        <arg name="fcu_url" value="$(arg fcu_url)"/>
+        <arg name="respawn_mavros" value="$(arg respawn_mavros)"/>
+        <arg name="fcu_protocol" value="$(arg fcu_protocol)" />
+    </include>
+    
+    <!-- PX4 and Gazebo -->
+    <include file="$(find px4)/launch/posix_sitl.launch">
+        <arg name="x" value="$(arg x)"/>
+        <arg name="y" value="$(arg y)"/>
+        <arg name="z" value="$(arg z)"/>
+        <arg name="world" value="$(arg world)"/>
+        <arg name="vehicle" value="$(arg mav_name)"/>
+        <arg name="sdf" value="$(arg sdf)"/>
+        <arg name="respawn_gazebo" value="$(arg respawn_gazebo)"/>
+    </include>
+
+</launch>

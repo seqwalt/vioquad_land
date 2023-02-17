@@ -15,11 +15,12 @@ int main(int argc, char **argv)
     TrajectoryGen mavTraj;
 
     // Get trajectory
-    string trajFileName = "/home/sequoyah/Documents/Research/ARC_lab/VIO/vioquad_ws/src/quad_control/traj/traj_fig8_20s.csv";
-    mavTraj.csvToEigen(trajFileName); // store trajectory in an Eigen matrix
+    string trajFile;
+    nh.getParam("/trajectory_gen_node/trajectory_file", trajFile);
+    mavTraj.csvToEigen(trajFile); // store trajectory in an Eigen matrix
 
     // Trajectory publisher
-    mavTraj.traj_pub = nh.advertise<quad_control::FlatOutputs>("reference/flatoutputs", 10);
+    mavTraj.traj_pub = nh.advertise<quad_control::FlatOutputs>("reference/flatoutputs", 1);
 
     // Timer that publishes setpoints at 100 Hz
     double freq = 100; // Hz

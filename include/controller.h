@@ -5,6 +5,7 @@
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/TwistStamped.h>
 #include <mavros_msgs/Thrust.h>
+#include <mavros_msgs/AttitudeTarget.h>
 #include <tf2_eigen/tf2_eigen.h>
 
 #include <Eigen/Core>
@@ -15,15 +16,6 @@ using namespace std;
 
 class Controller {
     public:
-        struct AttitudeInputs {      // Control inputs to be sent to FCU through mavros
-            geometry_msgs::PoseStamped attitude;
-            geometry_msgs::TwistStamped cmd_vel;
-            mavros_msgs::Thrust norm_thrust;
-        };
-        
-        struct PoseInputs {         // Control inputs to be sent to FCU through mavros
-            geometry_msgs::PoseStamped pose;
-        };
         
         struct FlatReference {      // Tracking reference (for using FlatOutputs message)
             geometry_msgs::Point position;
@@ -41,27 +33,36 @@ class Controller {
         Eigen::Vector3d err_vel;
         Eigen::Vector3d err_att;
         
-        Eigen::Vector3d K_pos = Eigen::Vector3d(8.0, 8.0, 10.0);
-        Eigen::Vector3d K_vel = Eigen::Vector3d(1.5, 1.5, 3.0);
-        Eigen::Vector3d K_att = Eigen::Vector3d(20.0, 20.0, 20.0);
-        double thrust_const1 = 0.05;
-        double thrust_const2 = 0.1;
+        double Kpos_x, Kpos_y, Kpos_z;
+        double Kvel_x, Kvel_y, Kvel_z;
+        double Katt_x, Katt_y, Katt_z;
+        double thrust_const, thrust_offset, max_err_acc;
+
+        Eigen::Vector3d K_pos = Eigen::Vector3d(Kpos_x, Kpos_y, Kpos_z);
+        Eigen::Vector3d K_vel = Eigen::Vector3d(Kvel_x, Kvel_y, Kvel_z);
+        Eigen::Vector3d K_att = Eigen::Vector3d(Katt_x, Katt_y, Katt_z);
         
         // Position + heading tracking controller
         // Directly feed through the setpoint positions and heading (yaw)
-        void PosYaw(PoseInputs& inputs, const FlatReference& ref) {
-            inputs.pose.pose.position = ref.position;
+        void PosYaw(geometry_msgs::PoseStamped& inputs, const FlatReference& ref) {
+            inputs.pose.position = ref.position;
             
             Eigen::AngleAxisd temp_angAxis(ref.yaw, Eigen::Vector3d(0,0,1));  // rotate about z-axis
             Eigen::Quaterniond quat_ref(temp_angAxis);
-            inputs.pose.pose.orientation = tf2::toMsg(quat_ref);
+            inputs.pose.orientation = tf2::toMsg(quat_ref);
         }
         
         // Geometric tracking controller
-        void Geometric(AttitudeInputs& inputs, const FlatReference& ref, const State& cur) {
+        void Geometric(mavros_msgs::AttitudeTarget& inputs, const FlatReference& ref, const State& cur) {
             // Generate control inputs to use with mavros, using the paper:
             // Geometric Tracking Control of a Quadrotor UAV on SE(3) (Lee et al., 2010)
             // Implementation inspired by https://github.com/Jaeyoung-Lim/mavros_controllers
+            
+            // Rotation matrix ENU <-> NED. Note symmetry
+            Eigen::Matrix3d ENUtoNED;
+            ENUtoNED << 0.0, 1.0, 0.0,
+                        1.0, 0.0, 0.0,
+                        0.0, 0.0,-1.0;
             
             // Position and velocity errors
             err_pos = vectToEigen(cur.pose.position) - vectToEigen(ref.position);    // position error
@@ -69,18 +70,18 @@ class Controller {
             
             // Convert current attitude to Eigen rotation matrix R_curr
             geometry_msgs::Quaternion q = cur.pose.orientation;
-            Eigen::Matrix3d R_curr = Eigen::Quaterniond(q.x, q.y, q.z, q.w).toRotationMatrix();
+            Eigen::Matrix3d R_curr = ENUtoNED * Eigen::Quaterniond(q.x, q.y, q.z, q.w).toRotationMatrix(); // convert to NED
             
             // Compute reference attitude R_ref
-            // Note: want ENU coord system, but the Lee paper uses NED,
-            // so we make the changes: z <-> -z, and x <-> y
+            // We use the ENU frame here, then convert to NED at the end
             geometry_msgs::Vector3 a = ref.acceleration;
-            Eigen::Vector3d acc_ref(a.x, a.y, a.z);
+            Eigen::Vector3d acc_ref(a.x, a.y, a.z); // convert from ENU to NED
             
-            Eigen::Vector3d thrust_vect = acc_ref - K_pos.asDiagonal()*err_pos - K_vel.asDiagonal()*err_vel - g*e3; // vector in direction of desired thrust
-            Eigen::Vector3d zb = thrust_vect / thrust_vect.norm();
-            Eigen::Vector3d y_head(-sin(ref.yaw), cos(ref.yaw), 0); // heading vector
-            Eigen::Vector3d xb = y_head.cross(zb) / (y_head.cross(zb)).norm();
+            Eigen::Vector3d acc_err = K_pos.asDiagonal()*err_pos + K_vel.asDiagonal()*err_vel;
+            Eigen::Vector3d acc_des = acc_ref + g*e3 - clip(acc_err, max_err_acc); // vector in direction of desired thrust
+            Eigen::Vector3d zb = acc_des / acc_des.norm();
+            Eigen::Vector3d y_heading = Eigen::Vector3d(-sin(ref.yaw), cos(ref.yaw), 0); // heading vector
+            Eigen::Vector3d xb = y_heading.cross(zb) / (y_heading.cross(zb)).norm();
             Eigen::Vector3d yb = zb.cross(xb);
             Eigen::Matrix3d R_ref;
             
@@ -89,19 +90,19 @@ class Controller {
             R_ref.col(2) = zb;
             
             // --- Attitude setpoint --- //
-            Eigen::Quaterniond quat_ref(R_ref);
-            inputs.attitude.pose.orientation = tf2::toMsg(quat_ref);
+            Eigen::Quaterniond quat_ref(ENUtoNED * R_ref); // convert to NED
+            inputs.orientation = tf2::toMsg(quat_ref);
             
             // Attitude error
             err_att = 0.5 * vee(R_ref.transpose()*R_curr - R_curr.transpose()*R_ref); // attitude error
             
             // --- Angular rate setpoint (K_att = 20.0) --- //
             Eigen::Vector3d ang_rate = K_att.asDiagonal()*err_att;
-            tf2::toMsg(ang_rate, inputs.cmd_vel.twist.angular); // fill inputs.cmd_vel.twist.angular
+            tf2::toMsg(ang_rate, inputs.body_rate); // fill inputs.body_rate
 
             // --- Thrust setpoint --- //
-            double Thrust = thrust_vect.dot(R_curr*e3);
-            inputs.norm_thrust.thrust = std::max(0.0, std::min(1.0, thrust_const1 * Thrust + thrust_const2));
+            double Acc_des = (ENUtoNED * acc_des).dot(R_curr*e3);
+            inputs.thrust = (float)std::max(0.0, std::min(1.0, thrust_const * Acc_des + thrust_offset));
         }
         
         template <class T>
@@ -126,8 +127,15 @@ class Controller {
         
         template <class T>
         Eigen::Vector3d vectToEigen(const T& msg){
-            return Eigen::Vector3d(msg.x, msg.y, msg.z);
+            return Eigen::Vector3d(msg.y, msg.x, -msg.z);
         };
+        
+        Eigen::Vector3d clip(const Eigen::Vector3d& vec, const double& mag) {
+            // IF vec has magnitude greater than mag, then
+            // scale it's magnitude to mag and return scaled vec.
+            // ELSE, return unscaled vec.
+            return (vec.norm() > mag) ? vec*(mag/vec.norm()) : vec;
+        }
 };
 
 #endif

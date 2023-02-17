@@ -88,7 +88,10 @@ class TrajectoryGen{
         {
             // find file
             std::ifstream file(filename);
-            assert(file && "File couldn't be opened");
+            if (!file){
+                ROS_ERROR_STREAM("The file named \'" << filename << "\' could not be opened. Shutting down node ...");
+                ros::shutdown();
+            }
 
             // store file data in a vector of vectors
             std::vector<std::vector<double>> data;
@@ -116,6 +119,7 @@ class TrajectoryGen{
             // start trajectory slightly off the ground
             trajMatrix.col(3) = trajMatrix.col(3).array() + z_offset; // add an offset to the z column (column 3)
             numRows = static_cast<unsigned int>(num_rows);
+            ROS_INFO_STREAM("Loaded trajectory file named \'" << filename << "\'." );
         }
 };
 

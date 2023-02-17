@@ -32,7 +32,10 @@ class MavrosCmd {
             print_request = ros::Time::now();
         }
 
+        Controller ctrl;
+        
         bool sim_enable;
+        string ctrl_mode;
         mavros_msgs::State currentModes;
 
         ros::Subscriber mode_sub;
@@ -42,8 +45,6 @@ class MavrosCmd {
 
         ros::Publisher pos_pub;
         ros::Publisher att_pub;
-        ros::Publisher angVel_pub;
-        ros::Publisher thrust_pub;
 
         ros::ServiceClient arming_client;
         ros::ServiceClient set_mode_client;
@@ -150,18 +151,14 @@ class MavrosCmd {
                     break;
                 }
                 case MISSION: {
-                    if (ros::Time::now() - print_request > ros::Duration(1.0)){
-                        ROS_INFO_STREAM("traj done = " << trajDone);
-                        print_request = ros::Time::now();
-                    }
                     if (!trajDone) {
                         // request the trajectory to be sent
                         if(!send_traj.response.success){
                             pos_pub.publish(firstPose_msg); // fixed hover while waiting for trajectory data
                             if(ros::Time::now() - traj_request > ros::Duration(2.0)){
+                                ROS_INFO("Requesting Trajectory.");
                                 send_traj_client.call(send_traj);
                                 traj_request = ros::Time::now();
-                                ROS_INFO("Requesting Trajectory.");
                             }
                         } else {
                             pos_pub.publish(firstPose_msg);
@@ -227,16 +224,16 @@ class MavrosCmd {
 
             // Compute and send control commands
 
-            // Geometric controller TODO: Fix
-            //ctrl.Geometric(attInputs, flatRef, curState);
-            //att_pub.publish(attInputs.attitude);
-            //angVel_pub.publish(attInputs.cmd_vel);
-            //thrust_pub.publish(attInputs.norm_thrust);
+            // Geometric controller TODO: Choose mode based on ctrl_mode string
+            ctrl.Geometric(attInputs, flatRef, curState);
+            attInputs.header.stamp = ros::Time::now();
+            attInputs.type_mask = 128;  // ignore attitude
+            att_pub.publish(attInputs); // set attitude, body rate and thrust to mavros
 
             // Position/Yaw controller
-            ctrl.PosYaw(posYawInputs, flatRef);
-            posYawInputs.pose.header.stamp = ros::Time::now();
-            pos_pub.publish(posYawInputs.pose);
+//             ctrl.PosYaw(posYawInputs, flatRef);
+//             posYawInputs.header.stamp = ros::Time::now();
+//             pos_pub.publish(posYawInputs);
         }
 
         // Enable OFFBOARD mode and ARM, used for simulation
@@ -290,11 +287,10 @@ class MavrosCmd {
         geometry_msgs::Pose curPose;
         geometry_msgs::Vector3 curVel;
 
-        Controller ctrl;
         Controller::FlatReference flatRef;
-        Controller::AttitudeInputs attInputs;
-        Controller::PoseInputs posYawInputs;
         Controller::State curState;
+        mavros_msgs::AttitudeTarget attInputs;
+        geometry_msgs::PoseStamped posYawInputs;
         bool trajDone;
 
         ros::Time mode_request;
