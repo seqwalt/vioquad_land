@@ -225,15 +225,15 @@ class MavrosCmd {
             // Compute and send control commands
 
             // Geometric controller TODO: Choose mode based on ctrl_mode string
-            ctrl.Geometric(attInputs, flatRef, curState);
-            attInputs.header.stamp = ros::Time::now();
-            attInputs.type_mask = 128;  // ignore attitude
-            att_pub.publish(attInputs); // set attitude, body rate and thrust to mavros
+            //ctrl.Geometric(attInputs, flatRef, curState);
+            //attInputs.header.stamp = ros::Time::now();
+            //attInputs.type_mask = 128;  // ignore attitude
+            //att_pub.publish(attInputs); // set attitude, body rate and thrust to mavros
 
             // Position/Yaw controller
-//             ctrl.PosYaw(posYawInputs, flatRef);
-//             posYawInputs.header.stamp = ros::Time::now();
-//             pos_pub.publish(posYawInputs);
+	    ctrl.PosYaw(posYawInputs, flatRef);
+	    posYawInputs.header.stamp = ros::Time::now();
+	    pos_pub.publish(posYawInputs);
         }
 
         // Enable OFFBOARD mode and ARM, used for simulation
