@@ -210,13 +210,9 @@ class MavrosCmd {
         }
 
         // Control Inputs are sent, after recieving reference setpoint
-        void mavRefCallback(const quad_control::FlatOutputs &msg) {
+        void mavRefCallback(const quad_control::FlatOutputs &flatRefMsg) {
             // Reference info
-            flatRef.position = msg.position;
-            flatRef.velocity = msg.velocity;
-            flatRef.acceleration = msg.acceleration;
-            flatRef.yaw = msg.yaw;
-            trajDone = msg.trajectoryDone;
+            trajDone = flatRefMsg.trajectoryDone;
 
             // Current State info
             curState.pose = curPose;
@@ -225,15 +221,15 @@ class MavrosCmd {
             // Compute and send control commands
 
             // Geometric controller TODO: Choose mode based on ctrl_mode string
-            //ctrl.Geometric(attInputs, flatRef, curState);
+            //ctrl.Geometric(attInputs, flatRefMsg, curState);
             //attInputs.header.stamp = ros::Time::now();
             //attInputs.type_mask = 128;  // ignore attitude
             //att_pub.publish(attInputs); // set attitude, body rate and thrust to mavros
 
             // Position/Yaw controller
-	    ctrl.PosYaw(posYawInputs, flatRef);
-	    posYawInputs.header.stamp = ros::Time::now();
-	    pos_pub.publish(posYawInputs);
+            ctrl.PosYaw(posYawInputs, flatRefMsg);
+            posYawInputs.header.stamp = ros::Time::now();
+            pos_pub.publish(posYawInputs);
         }
 
         // Enable OFFBOARD mode and ARM, used for simulation
@@ -287,10 +283,9 @@ class MavrosCmd {
         geometry_msgs::Pose curPose;
         geometry_msgs::Vector3 curVel;
 
-        Controller::FlatReference flatRef;
         Controller::State curState;
         mavros_msgs::AttitudeTarget attInputs;
-        geometry_msgs::PoseStamped posYawInputs;
+        mavros_msgs::PositionTarget posYawInputs;
         bool trajDone;
 
         ros::Time mode_request;

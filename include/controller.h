@@ -5,6 +5,7 @@
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/TwistStamped.h>
 #include <mavros_msgs/Thrust.h>
+#include <mavros_msgs/PositionTarget.h>
 #include <mavros_msgs/AttitudeTarget.h>
 #include <tf2_eigen/tf2_eigen.h>
 
@@ -15,15 +16,7 @@
 using namespace std;
 
 class Controller {
-    public:
-        
-        struct FlatReference {      // Tracking reference (for using FlatOutputs message)
-            geometry_msgs::Point position;
-            geometry_msgs::Vector3 velocity;
-            geometry_msgs::Vector3 acceleration;
-            double yaw;
-        };
-        
+    public:        
         struct State {             // Quadcopter states
             geometry_msgs::Pose pose;
             geometry_msgs::Vector3 velocity;
@@ -44,16 +37,31 @@ class Controller {
         
         // Position + heading tracking controller
         // Directly feed through the setpoint positions and heading (yaw)
-        void PosYaw(geometry_msgs::PoseStamped& inputs, const FlatReference& ref) {
-            inputs.pose.position = ref.position;
-            
-            Eigen::AngleAxisd temp_angAxis(ref.yaw, Eigen::Vector3d(0,0,1));  // rotate about z-axis
-            Eigen::Quaterniond quat_ref(temp_angAxis);
-            inputs.pose.orientation = tf2::toMsg(quat_ref);
+//         void PosYaw(geometry_msgs::PoseStamped& inputs, const FlatReference& ref) {
+//             inputs.pose.position = ref.position;
+//             
+//             Eigen::AngleAxisd temp_angAxis(ref.yaw, Eigen::Vector3d(0,0,1));  // rotate about z-axis
+//             Eigen::Quaterniond quat_ref(temp_angAxis);
+//             inputs.pose.orientation = tf2::toMsg(quat_ref);
+//         }
+        
+        // Position + heading tracking controller
+        // Give PX4 the setpoint positions/velocities/accels and heading (yaw)
+        // PX4 uses the following control scheme:
+        //      The velocity and the acceleration setpoints are used as feedforwards;
+        //      the velocity setpoint is added to the output of the position controller
+        //      and the result is used as the input to the velocity controller;
+        //      the acceleration setpoint is added to the output of the velocity controller
+        //      and the result used to compute the thrust vector
+        void PosYaw(mavros_msgs::PositionTarget& inputs, const quad_control::FlatOutputs &ref) {
+            inputs.position = ref.position;
+            inputs.velocity = ref.velocity;
+            inputs.acceleration_or_force = ref.acceleration;
+            inputs.yaw = ref.yaw;
         }
         
         // Geometric tracking controller
-        void Geometric(mavros_msgs::AttitudeTarget& inputs, const FlatReference& ref, const State& cur) {
+        void Geometric(mavros_msgs::AttitudeTarget& inputs, const quad_control::FlatOutputs &ref, const State& cur) {
             // Generate control inputs to use with mavros, using the paper:
             // Geometric Tracking Control of a Quadrotor UAV on SE(3) (Lee et al., 2010)
             // Implementation inspired by https://github.com/Jaeyoung-Lim/mavros_controllers
