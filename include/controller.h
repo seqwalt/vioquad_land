@@ -54,6 +54,8 @@ class Controller {
         //      the acceleration setpoint is added to the output of the velocity controller
         //      and the result used to compute the thrust vector
         void PosYaw(mavros_msgs::PositionTarget& inputs, const quad_control::FlatOutputs &ref) {
+            // TODO: try converting to NED to conform with SET_POSITION_TARGET_LOCAL_NED mavlink message
+            // imputs.position.x = ref.position.y ..... etc.
             inputs.position = ref.position;
             inputs.velocity = ref.velocity;
             inputs.acceleration_or_force = ref.acceleration;
