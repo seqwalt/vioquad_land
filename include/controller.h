@@ -55,11 +55,28 @@ class Controller {
         //      and the result used to compute the thrust vector
         void PosYaw(mavros_msgs::PositionTarget& inputs, const quad_control::FlatOutputs &ref) {
             // TODO: try converting to NED to conform with SET_POSITION_TARGET_LOCAL_NED mavlink message
-            // imputs.position.x = ref.position.y ..... etc.
-            inputs.position = ref.position;
-            inputs.velocity = ref.velocity;
-            inputs.acceleration_or_force = ref.acceleration;
-            inputs.yaw = ref.yaw;
+            // inputs.position.x = ref.position.y ..... etc.
+            inputs.position.x = ref.position.y;
+            inputs.position.y = ref.position.x;
+            inputs.position.z = -ref.position.z;
+            
+            inputs.velocity.x = ref.velocity.y;
+            inputs.velocity.y = ref.velocity.x;
+            inputs.velocity.z = -ref.velocity.z;
+            
+            inputs.acceleration_or_force.x = ref.acceleration.y;
+            inputs.acceleration_or_force.y = ref.acceleration.x;
+            inputs.acceleration_or_force.z = -ref.acceleration.z;
+
+            inputs.yaw = -ref.yaw;
+            
+            inputs.type_mask = 511; // ignore position and velocity
+            
+            // original (ENU)
+            //inputs.position = ref.position;
+            //inputs.velocity = ref.velocity;
+            //inputs.acceleration_or_force = ref.acceleration;
+            //inputs.yaw = ref.yaw;
         }
         
         // Geometric tracking controller
