@@ -44,6 +44,7 @@ class MavrosCmd {
         ros::Subscriber traj_sub;
 
         ros::Publisher pos_pub;
+        ros::Publisher pos_track_pub;
         ros::Publisher att_pub;
 
         ros::ServiceClient arming_client;
@@ -229,7 +230,8 @@ class MavrosCmd {
             // Position/Yaw controller
             ctrl.PosYaw(posYawInputs, flatRefMsg);
             posYawInputs.header.stamp = ros::Time::now();
-            pos_pub.publish(posYawInputs);
+            posYawInputs.coordinate_frame = 1; // corresponds to MAV_FRAME_LOCAL_NED
+            pos_track_pub.publish(posYawInputs);
         }
 
         // Enable OFFBOARD mode and ARM, used for simulation

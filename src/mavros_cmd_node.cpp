@@ -25,8 +25,10 @@ int main(int argc, char **argv)
             ("reference/flatoutputs", 1, &MavrosCmd::mavRefCallback, &mavCmd, ros::TransportHints().tcpNoDelay());
 
     // Publishers
-    mavCmd.pos_pub = nh.advertise<geometry_msgs::PoseStamped>
-            ("mavros/setpoint_position/local", 10);
+    mavCmd.pos_track_pub = nh.advertise<mavros_msgs::PositionTarget> // For control during trajectory tracking
+            ("mavros/setpoint_raw/local", 1);
+    mavCmd.pos_pub = nh.advertise<geometry_msgs::PoseStamped> // For takeoff, and going to start of trajectory
+            ("mavros/setpoint_position/local", 1);
     mavCmd.att_pub = nh.advertise<mavros_msgs::AttitudeTarget>
             ("mavros/setpoint_raw/attitude", 1); // NOTE: setpoint_raw expects NED (while setpoint_attitude expects ENU)
 //     mavCmd.att_pub = nh.advertise<geometry_msgs::PoseStamped>
