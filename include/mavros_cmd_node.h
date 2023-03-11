@@ -34,8 +34,8 @@ class MavrosCmd {
 
         Controller ctrl;
         
+        enum ControllerType { POSITION, GEOMETRIC } ctrl_mode;
         bool sim_enable;
-        string ctrl_mode;
         mavros_msgs::State currentModes;
 
         ros::Subscriber mode_sub;
@@ -190,7 +190,9 @@ class MavrosCmd {
                     break;
                 }
                 default: {
-                    ROS_INFO("Error: Flight State Not Defined");
+                    ROS_ERROR("Flight state not defined, landing");
+                    flight_state = LANDING;
+                    break;
                 }
             } // end switch statement
         } // end cmdLoopCallback function
@@ -220,18 +222,27 @@ class MavrosCmd {
             curState.velocity = curVel;
 
             // Compute and send control commands
-
-            // Geometric controller TODO: Choose mode based on ctrl_mode string
-            //ctrl.Geometric(attInputs, flatRefMsg, curState);
-            //attInputs.header.stamp = ros::Time::now();
-            //attInputs.type_mask = 128;  // ignore attitude
-            //att_pub.publish(attInputs); // set attitude, body rate and thrust to mavros
-
-            // Position/Yaw controller
-            ctrl.PosYaw(posYawInputs, flatRefMsg);
-            posYawInputs.header.stamp = ros::Time::now();
-            posYawInputs.coordinate_frame = 1; // corresponds to MAV_FRAME_LOCAL_NED
-            pos_track_pub.publish(posYawInputs);
+            switch(ctrl_mode) {
+                case GEOMETRIC: { // Geometric controller
+                    ctrl.Geometric(attInputs, flatRefMsg, curState);
+                    attInputs.header.stamp = ros::Time::now();
+                    attInputs.type_mask = 128;  // ignore attitude
+                    att_pub.publish(attInputs); // set attitude, body rate and thrust to mavros
+                    break;
+                }
+                case POSITION: { // Position/Yaw controller
+                    ctrl.PosYaw(posYawInputs, flatRefMsg);
+                    posYawInputs.header.stamp = ros::Time::now();
+                    posYawInputs.coordinate_frame = 1; // corresponds to MAV_FRAME_LOCAL_NED
+                    pos_track_pub.publish(posYawInputs);
+                    break;
+                }
+                default: {
+                    ROS_ERROR("Controller type not defined, landing");
+                    flight_state = LANDING;
+                    break;
+                }
+            }
         }
 
         // Enable OFFBOARD mode and ARM, used for simulation
@@ -248,6 +259,7 @@ class MavrosCmd {
                             }
                             mode_request = ros::Time::now();
                         }
+                        break;
                     }
                     default: {
                         arm_cmd.request.value = true;
@@ -265,6 +277,7 @@ class MavrosCmd {
                                 mode_request = ros::Time::now();
                             }
                         }
+                        break;
                     }
                 }
             } else { // not using sim

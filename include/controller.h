@@ -36,16 +36,6 @@ class Controller {
         Eigen::Vector3d K_att = Eigen::Vector3d(Katt_x, Katt_y, Katt_z);
         
         // Position + heading tracking controller
-        // Directly feed through the setpoint positions and heading (yaw)
-//         void PosYaw(geometry_msgs::PoseStamped& inputs, const FlatReference& ref) {
-//             inputs.pose.position = ref.position;
-//             
-//             Eigen::AngleAxisd temp_angAxis(ref.yaw, Eigen::Vector3d(0,0,1));  // rotate about z-axis
-//             Eigen::Quaterniond quat_ref(temp_angAxis);
-//             inputs.pose.orientation = tf2::toMsg(quat_ref);
-//         }
-        
-        // Position + heading tracking controller
         // Give PX4 the setpoint positions/velocities/accels and heading (yaw)
         // PX4 uses the following control scheme:
         //      The velocity and the acceleration setpoints are used as feedforwards;
@@ -53,29 +43,13 @@ class Controller {
         //      and the result is used as the input to the velocity controller;
         //      the acceleration setpoint is added to the output of the velocity controller
         //      and the result used to compute the thrust vector
-        void PosYaw(mavros_msgs::PositionTarget& inputs, const quad_control::FlatOutputs &ref) {
-            // NED configuration
-//             inputs.position.x = ref.position.y;
-//             inputs.position.y = ref.position.x;
-//             inputs.position.z = -ref.position.z;
-//             
-//             inputs.velocity.x = ref.velocity.y;
-//             inputs.velocity.y = ref.velocity.x;
-//             inputs.velocity.z = -ref.velocity.z;
-//             
-//             inputs.acceleration_or_force.x = ref.acceleration.y;
-//             inputs.acceleration_or_force.y = ref.acceleration.x;
-//             inputs.acceleration_or_force.z = -ref.acceleration.z;
-// 
-//             inputs.yaw = -ref.yaw;
-            
-//             inputs.type_mask = 511; // ignore position and velocity
-            
-            // ENU configuration
+        void PosYaw(mavros_msgs::PositionTarget& inputs, const quad_control::FlatOutputs &ref) {            
             inputs.position = ref.position;
             inputs.velocity = ref.velocity;
             inputs.acceleration_or_force = ref.acceleration;
             inputs.yaw = ref.yaw;
+//             inputs.type_mask = 511; // ignore position and velocity
+
         }
         
         // Geometric tracking controller
