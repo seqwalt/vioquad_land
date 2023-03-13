@@ -226,7 +226,6 @@ class MavrosCmd {
                 case GEOMETRIC: { // Geometric controller
                     ctrl.Geometric(attInputs, flatRefMsg, curState);
                     attInputs.header.stamp = ros::Time::now();
-                    attInputs.type_mask = 128;  // ignore attitude
                     att_pub.publish(attInputs); // set attitude, body rate and thrust to mavros
                     break;
                 }

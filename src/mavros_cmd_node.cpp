@@ -42,6 +42,8 @@ int main(int argc, char **argv)
     nh.param<double>("/mavros_cmd_node/Katt_y", mavCmd.ctrl.Katt_y, 20.0);
     nh.param<double>("/mavros_cmd_node/Katt_z", mavCmd.ctrl.Katt_z, 20.0);
     
+    cout << "shouldn't be zero: " << mavCmd.ctrl.Kpos_x << endl;
+    
     // Subscribers
     mavCmd.mode_sub = nh.subscribe
             ("mavros/state", 1, &MavrosCmd::modeCallback, &mavCmd); // http://wiki.ros.org/roscpp_tutorials/Tutorials/UsingClassMethodsAsCallbacks
