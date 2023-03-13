@@ -100,7 +100,7 @@ class Controller {
             
             // --- Thrust setpoint --- //
             double Acc_des = (acc_des).dot(R_curr*e3);
-            thrust_const = 0.05;
+            thrust_const  = 0.05;
             thrust_offset = 0.1;
             inputs.thrust = (float)std::max(0.0, std::min(1.0, thrust_const * Acc_des + thrust_offset));
         }

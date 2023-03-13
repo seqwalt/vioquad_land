@@ -34,7 +34,7 @@ class MavrosCmd {
 
         Controller ctrl;
         
-        enum ControllerType { POSITION, GEOMETRIC } ctrl_mode;
+        enum ControllerType { POSITION, GEOMETRIC } ctrl_mode; // chosen in launch file
         bool sim_enable;
         mavros_msgs::State currentModes;
 
@@ -161,11 +161,7 @@ class MavrosCmd {
                                 send_traj_client.call(send_traj);
                                 traj_request = ros::Time::now();
                             }
-                        } else {
-                            pos_pub.publish(firstPose_msg);
-                            ros::spinOnce();
                         }
-                        // TODO: cout the absolute error btw curr pose and desired pose
                     } else {
                         geometry_msgs::PoseStamped hover_msg;
                         hover_msg.header.stamp = ros::Time::now();
