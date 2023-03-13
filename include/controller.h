@@ -69,8 +69,8 @@ class Controller {
             geometry_msgs::Vector3 a = ref.acceleration;
             Eigen::Vector3d acc_ref(a.x, a.y, a.z);
 
-            K_pos = Eigen::Vector3d(20, 20, 20);
-            K_vel = Eigen::Vector3d(10, 10, 10);
+            K_pos = Eigen::Vector3d(10, 10, 20);
+            K_vel = Eigen::Vector3d(5, 5, 10);
             max_err_acc = 10;
             Eigen::Vector3d acc_err = K_pos.asDiagonal()*err_pos + K_vel.asDiagonal()*err_vel;
             Eigen::Vector3d acc_des = acc_ref + g*e3 - clip(acc_err, max_err_acc); // vector in direction of desired thrust
@@ -99,10 +99,10 @@ class Controller {
             inputs.type_mask = 8;       // Ignore angular rate messages
             
             // --- Thrust setpoint --- //
-            double Acc_des = (acc_des).dot(R_curr*e3);
-            thrust_const  = 0.05;
-            thrust_offset = 0.1;
-            inputs.thrust = (float)std::max(0.0, std::min(1.0, thrust_const * Acc_des + thrust_offset));
+            double thrust_des = (acc_des).dot(R_curr*e3);
+            thrust_const  = 0.04;
+            thrust_offset = 0.2484;
+            inputs.thrust = (float)std::max(0.0, std::min(1.0, thrust_const * thrust_des + thrust_offset));
         }
         
         template <class T>
