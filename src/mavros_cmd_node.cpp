@@ -16,7 +16,7 @@ int main(int argc, char **argv)
 
     // Parameters
     string ctrl_mode_str;
-    nh.param<string>("/mavros_cmd_node/ctrl_mode", ctrl_mode_str, "geometric"); // default is geometric controller. Value set from launch file
+    nh.param<string>("/mavros_cmd_node/ctrl_mode", ctrl_mode_str, "position"); // default is position controller if not set from launch file
     if (ctrl_mode_str == "geometric"){
         mavCmd.ctrl_mode = MavrosCmd::GEOMETRIC;
     } else if (ctrl_mode_str == "position"){
@@ -27,17 +27,16 @@ int main(int argc, char **argv)
     }
     
     nh.param<bool>("/mavros_cmd_node/enable_sim", mavCmd.sim_enable, true); // used in setupCallback
-    
     nh.param<double>("/mavros_cmd_node/max_err_acc", mavCmd.ctrl.max_err_acc, 20.0);     // largest magnitude (K_pos*err_pos + K_vel*err_vel) can have
-    nh.param<double>("/mavros_cmd_node/Kpos_x", mavCmd.ctrl.Kpos_x, 12.0);
-    nh.param<double>("/mavros_cmd_node/Kpos_y", mavCmd.ctrl.Kpos_y, 12.0);
-    nh.param<double>("/mavros_cmd_node/Kpos_z", mavCmd.ctrl.Kpos_z, 10.0);
-    nh.param<double>("/mavros_cmd_node/Kvel_x", mavCmd.ctrl.Kvel_x, 3.0);
-    nh.param<double>("/mavros_cmd_node/Kvel_y", mavCmd.ctrl.Kvel_y, 3.0);
-    nh.param<double>("/mavros_cmd_node/Kvel_z", mavCmd.ctrl.Kvel_z, 3.3);
-    nh.param<double>("/mavros_cmd_node/Katt_x", mavCmd.ctrl.Katt_x, 20.0);   // ang_rate = K_att * err_att
-    nh.param<double>("/mavros_cmd_node/Katt_y", mavCmd.ctrl.Katt_y, 20.0);
-    nh.param<double>("/mavros_cmd_node/Katt_z", mavCmd.ctrl.Katt_z, 20.0);
+    nh.param<double>("/mavros_cmd_node/Kpos_x", mavCmd.ctrl.K_pos[0], 12.0);
+    nh.param<double>("/mavros_cmd_node/Kpos_y", mavCmd.ctrl.K_pos[1], 12.0);
+    nh.param<double>("/mavros_cmd_node/Kpos_z", mavCmd.ctrl.K_pos[2], 10.0);
+    nh.param<double>("/mavros_cmd_node/Kvel_x", mavCmd.ctrl.K_vel[0], 3.0);
+    nh.param<double>("/mavros_cmd_node/Kvel_y", mavCmd.ctrl.K_vel[1], 3.0);
+    nh.param<double>("/mavros_cmd_node/Kvel_z", mavCmd.ctrl.K_vel[2], 3.3);
+    nh.param<double>("/mavros_cmd_node/Katt_x", mavCmd.ctrl.K_att[0], 20.0);   // ang_rate = K_att * err_att
+    nh.param<double>("/mavros_cmd_node/Katt_y", mavCmd.ctrl.K_att[1], 20.0);
+    nh.param<double>("/mavros_cmd_node/Katt_z", mavCmd.ctrl.K_att[2], 20.0);
         
     // Subscribers
     mavCmd.mode_sub = nh.subscribe
@@ -67,17 +66,19 @@ int main(int argc, char **argv)
 
     // Timers
     bool autostart = false;
-    mavCmd.cmdloop_timer = nh.createTimer(ros::Duration(0.01), &MavrosCmd::cmdLoopCallback, &mavCmd, false, autostart); // send commands at 100 HZ
-    mavCmd.setup_timer = nh.createTimer(ros::Duration(1), &MavrosCmd::setupCallback, &mavCmd, false, autostart); // send commands at 1 HZ
+    // High-level logic loop (takoff, landing etc)
+    mavCmd.cmdloop_timer = nh.createTimer(ros::Duration(0.1), &MavrosCmd::cmdLoopCallback, &mavCmd, false, autostart); // loop at 10 Hz
+    // Setup loop (arm, disarm, offboard mode)
+    mavCmd.setup_timer = nh.createTimer(ros::Duration(1), &MavrosCmd::setupCallback, &mavCmd, false, autostart);       // loop at  1 HZ
     
     // wait for FCU connection
-    ros::Rate FCU_connect_rate(5.0);
+    ros::Rate FCU_connect_rate(5.0); // 5 Hz
     while(ros::ok() && !mavCmd.currentModes.connected){
         ros::spinOnce();
         FCU_connect_rate.sleep();
     }
     
-    // Start command loop and setupInit
+    // Start command and setup loops
     mavCmd.cmdloop_timer.start();
     mavCmd.setup_timer.start();
 

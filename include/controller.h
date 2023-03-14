@@ -1,5 +1,5 @@
-#ifndef CONTROLLER_H
-#define CONTROLLER_H
+#ifndef CONTROLLER_H_INCLUDED
+#define CONTROLLER_H_INCLUDED
 
 #include <ros/ros.h>
 #include <geometry_msgs/PoseStamped.h>
@@ -26,11 +26,7 @@ class Controller {
         Eigen::Vector3d err_vel;
         Eigen::Vector3d err_att;
         
-        double Kpos_x, Kpos_y, Kpos_z;
-        double Kvel_x, Kvel_y, Kvel_z;
-        double Katt_x, Katt_y, Katt_z;
         double max_err_acc;
-
         Eigen::Vector3d K_pos;
         Eigen::Vector3d K_vel;
         Eigen::Vector3d K_att;
@@ -52,11 +48,9 @@ class Controller {
         }
         
         // Geometric tracking controller
+        // Based on "Geometric Tracking Control of a Quadrotor UAV on SE(3)" (Lee et al., 2010)
+        // Implementation inspired by https://github.com/Jaeyoung-Lim/mavros_controllers
         void Geometric(mavros_msgs::AttitudeTarget& inputs, const quad_control::FlatOutputs &ref, const State& cur) {
-            // Generate control inputs to use with mavros, using the paper:
-            // Geometric Tracking Control of a Quadrotor UAV on SE(3) (Lee et al., 2010)
-            // Implementation inspired by https://github.com/Jaeyoung-Lim/mavros_controllers
-            
             // Position and velocity errors
             err_pos = vectToEigen(cur.pose.position) - vectToEigen(ref.position);    // position error
             err_vel = vectToEigen(cur.velocity) - vectToEigen(ref.velocity);         // velocity error
@@ -69,9 +63,6 @@ class Controller {
             geometry_msgs::Vector3 a = ref.acceleration;
             Eigen::Vector3d acc_ref(a.x, a.y, a.z);
             
-            K_pos = Eigen::Vector3d(Kpos_x, Kpos_y, Kpos_z);
-            K_vel = Eigen::Vector3d(Kvel_x, Kvel_y, Kvel_z);
-                
             Eigen::Vector3d acc_err = K_pos.asDiagonal()*err_pos + K_vel.asDiagonal()*err_vel;
             Eigen::Vector3d acc_des = acc_ref - g*e3 - clip(acc_err, max_err_acc); // vector in direction of desired thrust
             Eigen::Vector3d zb = acc_des / acc_des.norm();
@@ -92,7 +83,6 @@ class Controller {
             err_att = 0.5 * vee(R_ref.transpose()*R_curr - R_curr.transpose()*R_ref); // attitude error
             
             // --- Angular rate setpoint (K_att = 20.0) --- //
-            K_att = Eigen::Vector3d(Katt_x, Katt_y, Katt_z);
             Eigen::Vector3d ang_rate = K_att.asDiagonal()*err_att;
             tf2::toMsg(ang_rate, inputs.body_rate); // fill inputs.body_rate
 
@@ -148,7 +138,7 @@ class Controller {
         }
 };
 
-#endif
+#endif // CONTROLLER_H_INCLUDED
 
 
 

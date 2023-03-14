@@ -1,5 +1,5 @@
-#ifndef MAVROS_CMD_NODE_H
-#define MAVROS_CMD_NODE_H
+#ifndef MAVROS_CMD_NODE_H_INCLUDED
+#define MAVROS_CMD_NODE_H_INCLUDED
 
 #include <ros/ros.h>
 #include <mavros/mavros.h>
@@ -55,35 +55,24 @@ class MavrosCmd {
         ros::Timer cmdloop_timer;
         ros::Timer setup_timer;
 
-        // List of Public functions:
-        /*
-        void modeCallback(const mavros_msgs::State::ConstPtr& msg);     // Pass along mav mode info
-        void cmdloopCallback(const ros::TimerEvent& event);             // Publish flight commands according to current flight state
-        void mavposeCallback(const geometry_msgs::PoseStamped &msg);    // Pass along mav pose data. Sets reference pose upon first call.
-        void setupCallback(const ros::TimerEvent& event);               // Enable OFFBOARD mode and ARM, used for simulation
-        */
-
-        // ---------- Public Functions ----------- //
-
         // Pass along mav state info
-        void modeCallback(const mavros_msgs::State::ConstPtr& msg){
+        void modeCallback(const mavros_msgs::State::ConstPtr& msg) {
             currentModes = *msg;
         }
 
-        // Publish flight commands according to current flight state
+        // Switch between flight states (e.g. takeoff, landing) and
+        // perform tasks for each flight state (e.g. request trajectory, tell quadcopter to takeoff)
         void cmdLoopCallback(const ros::TimerEvent& event) {
             switch (flight_state) {
                 case INITIALIZATION: {
                     if (!received_home_pose) {
-                        waitForData(&received_home_pose, "Waiting for home pose...");
+                        waitForData(&received_home_pose, "Waiting for home pose.");
                         ROS_INFO("Got home pose.");
                     } else if(ros::Time::now() - traj_request > ros::Duration(2.0)) {
                         traj_request = ros::Time::now();
-                        ROS_INFO("Waiting for initial trajectory pose");
+                        //ROS_INFO("Waiting for initial trajectory pose.");
                         if (init_traj_client.call(init_traj) && init_traj.response.success) {
-                            // ROS_INFO("Received initial trajectory pose. Commencing takeoff...");
-                            ROS_INFO("Received.");
-                            ROS_INFO_STREAM("Initial traj position: " << init_traj.response.position);
+                            ROS_INFO_STREAM("Initial traj position: " << endl << init_traj.response.position);
                             ROS_INFO_STREAM("Initial traj yaw     : " << init_traj.response.yaw);
                             flight_state = TAKEOFF;
                         }
@@ -95,28 +84,26 @@ class MavrosCmd {
                     geometry_msgs::PoseStamped takeoff_msg;
                     takeoff_msg.header.stamp = ros::Time::now();
                     takeoff_msg.pose = home_pose;
-                    takeoff_msg.pose.position.z += 1.0;
+                    double z_ref = 1.0;
+                    takeoff_msg.pose.position.z += z_ref;
 
                     // Error
                     double z_diff = takeoff_msg.pose.position.z - curPose.position.z;
-                    if (ros::Time::now() - print_request > ros::Duration(3.0)){
+                    /*if (ros::Time::now() - print_request > ros::Duration(3.0)){
                         ROS_INFO_STREAM("z_diff = " << z_diff);
                         print_request = ros::Time::now();
-                    }
-                    if (abs(z_diff) > 0.1){
+                    }*/
+                    if (abs(z_diff) > 0.3*z_ref){
                         pos_pub.publish(takeoff_msg);
-                        dispOnce("Trying vertical takeoff. ", switch1);
                     } else {
                         pos_pub.publish(takeoff_msg);
                         flight_state = TO_START_POSE;
-                        dispOnce("Done vertical takeoff. ", switch4);
                         ros::spinOnce();
                     }
                     break;
                 }
                 case TO_START_POSE: {
-                    //dispOnce("Start pose checkpoint 1", switch6);
-                    // hover at trajectory start pose
+                    // Go to start of trajectory then hover
                     geometry_msgs::Point firstPosition = init_traj.response.position;
                     double takeoff_yaw = init_traj.response.yaw;
                     Eigen::AngleAxisd rotation_vector(takeoff_yaw, Eigen::Vector3d(0,0,1));  // rotate about z-axis
@@ -135,14 +122,14 @@ class MavrosCmd {
                     Eigen::Quaterniond curQuat = ctrl.quatToEigen(curPose.orientation);
                     double curYaw = mavros::ftf::quaternion_get_yaw(curQuat);
                     double yaw_error = abs(takeoff_yaw - curYaw);
-                    if (ros::Time::now() - print_request > ros::Duration(1.0)){
+                    /*if (ros::Time::now() - print_request > ros::Duration(1.0)){
                         ROS_INFO_STREAM("pos_err = " << pos_error);
                         ROS_INFO_STREAM("yaw_err = " << yaw_error);
                         print_request = ros::Time::now();
-                    }
+                    }*/
                     if (pos_error > 0.1 || yaw_error > 0.05){
                         // Go to first trajectory pose
-                        //dispOnce("Going to first trajectory pose.", switch2);
+                        ROS_INFO_ONCE("Going to start of trajectory.");
                         pos_pub.publish(firstPose_msg);
                     } else {
                         pos_pub.publish(firstPose_msg);
@@ -152,15 +139,19 @@ class MavrosCmd {
                     break;
                 }
                 case MISSION: {
+                    // Request trajectory data. Each time trajectory data is sent, 
+                    // mavRefCallback() will send a control input
                     if (!trajDone) {
                         // request the trajectory to be sent
                         if(!send_traj.response.success){
                             pos_pub.publish(firstPose_msg); // fixed hover while waiting for trajectory data
                             if(ros::Time::now() - traj_request > ros::Duration(2.0)){
-                                ROS_INFO("Requesting Trajectory.");
+                                //ROS_INFO("Requesting trajectory.");
                                 send_traj_client.call(send_traj);
                                 traj_request = ros::Time::now();
                             }
+                        } else {
+                            ROS_INFO_ONCE("Tracking trajectory.");
                         }
                     } else {
                         geometry_msgs::PoseStamped hover_msg;
@@ -191,9 +182,10 @@ class MavrosCmd {
                     break;
                 }
             } // end switch statement
-        } // end cmdLoopCallback function
+        } // end of cmdLoopCallback()
 
         // Pass along current mav pose data. Sets reference pose upon first call.
+        // Required for feedback control of quadcopter
         void mavPoseCallback(const geometry_msgs::PoseStamped &msg) {
             if (!received_home_pose) {
                 received_home_pose = true;
@@ -204,11 +196,13 @@ class MavrosCmd {
         }
 
         // Pass along current mav velocity data.
+        // Required for feedback control of quadcopter
         void mavVelCallback(const geometry_msgs::TwistStamped &msg) {
             curVel = msg.twist.linear;
         }
 
         // Control Inputs are sent, after recieving reference setpoint
+        // ctrl_mode is a parameter set during node start-up
         void mavRefCallback(const quad_control::FlatOutputs &flatRefMsg) {
             // Reference info
             trajDone = flatRefMsg.trajectoryDone;
@@ -238,47 +232,45 @@ class MavrosCmd {
                     break;
                 }
             }
-        }
+        } // end of mavRefCallback()
 
-        // Enable OFFBOARD mode and ARM, used for simulation
+        // Enable OFFBOARD mode. Arm/Disarm if in simulation
         void setupCallback(const ros::TimerEvent &event) {
-            if (sim_enable) {
-                switch(flight_state) {
-                    case LANDING: {
-                        // try to disarm
+            switch(flight_state) {
+                case LANDING: {
+                    // try to disarm if in simulation
+                    if (sim_enable && currentModes.armed && (ros::Time::now() - mode_request > ros::Duration(2.0))) {
                         arm_cmd.request.value = false;
-                        if (currentModes.armed && (ros::Time::now() - mode_request > ros::Duration(2.0))) {
-                            if (arming_client.call(arm_cmd) && arm_cmd.response.success) {
-                                ROS_INFO("Vehicle disarmed");
-                                setup_timer.stop();
-                            }
-                            mode_request = ros::Time::now();
+                        if (arming_client.call(arm_cmd) && arm_cmd.response.success) {
+                            ROS_INFO("Vehicle disarmed");
+                            setup_timer.stop();
                         }
-                        break;
+                        mode_request = ros::Time::now();
                     }
-                    default: {
-                        arm_cmd.request.value = true;
-                        mavros_set_mode.request.custom_mode = "OFFBOARD";
-                        if (currentModes.mode != "OFFBOARD" && (ros::Time::now() - mode_request > ros::Duration(2.0))) {
-                            if (set_mode_client.call(mavros_set_mode) && mavros_set_mode.response.mode_sent) {
-                                ROS_INFO("Offboard enabled");
-                            }
-                            mode_request = ros::Time::now();
-                        } else {
-                            if (!currentModes.armed && (ros::Time::now() - mode_request > ros::Duration(2.0))) {
-                                if (arming_client.call(arm_cmd) && arm_cmd.response.success) {
-                                    ROS_INFO("Vehicle armed");
-                                }
-                                mode_request = ros::Time::now();
-                            }
-                        }
-                        break;
-                    }
+                    break;
                 }
-            } else { // not using sim
-                setup_timer.stop();
+                default: {
+                    // try to enter offboard mode
+                    if (currentModes.mode != "OFFBOARD" && (ros::Time::now() - mode_request > ros::Duration(2.0))) {
+                        mavros_set_mode.request.custom_mode = "OFFBOARD";
+                        if (set_mode_client.call(mavros_set_mode) && mavros_set_mode.response.mode_sent) {
+                            ROS_INFO("Offboard enabled");
+                        }
+                        mode_request = ros::Time::now();
+                    }
+                    // try to arm if in simulation
+                    if (try_to_arm && sim_enable && !currentModes.armed && (ros::Time::now() - mode_request > ros::Duration(2.0))) {
+                        arm_cmd.request.value = true;
+                        if (arming_client.call(arm_cmd) && arm_cmd.response.success) {
+                            ROS_INFO("Vehicle armed for takeoff");
+                            try_to_arm = false;
+                        }
+                        mode_request = ros::Time::now();
+                    }
+                    break;
+                }
             }
-        }
+        } // end of setupCallback()
 
     private:
         enum FlightState { INITIALIZATION, TAKEOFF, TO_START_POSE, MISSION, LANDING } flight_state;
@@ -297,6 +289,7 @@ class MavrosCmd {
         mavros_msgs::AttitudeTarget attInputs;
         mavros_msgs::PositionTarget posYawInputs;
         bool trajDone;
+        bool try_to_arm = true;
 
         ros::Time mode_request;
         ros::Time land_request;
@@ -314,16 +307,6 @@ class MavrosCmd {
                 wait_rate.sleep();
             }
         };
-
-        bool switch1, switch2, switch3, switch4, switch5, switch6, switch7, switch8 = true;
-        void dispOnce(const string &str, bool &sw){
-            if (sw){
-                ROS_INFO_STREAM(str);
-                sw = false;
-            }
-        }
 };
 
-
-
-#endif
+#endif // MAVROS_CMD_NODE_H_INCLUDED

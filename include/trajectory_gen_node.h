@@ -1,5 +1,5 @@
-#ifndef TRAJ_GEN_NODE
-#define TRAJ_GEN_NODE
+#ifndef TRAJ_GEN_NODE_H_INCLUDED
+#define TRAJ_GEN_NODE_H_INCLUDED
 
 #include <ros/ros.h>
 #include <geometry_msgs/PoseStamped.h>
@@ -69,7 +69,7 @@ class TrajectoryGen{
             traj_timer.start();  // start publishing the trajectory
             if(traj_timer.hasStarted()){
                 res.success = true;
-                ROS_INFO_STREAM("Publishing trajectory.");
+                //ROS_INFO_STREAM("Publishing trajectory.");
             }
             return true;
         }
@@ -80,7 +80,7 @@ class TrajectoryGen{
             res.position.y = trajMatrix(0,2);
             res.position.z = trajMatrix(0,3);
             res.yaw        = trajMatrix(0,4);
-            ROS_INFO_STREAM("Initial trajectory pose sent.");
+            //ROS_INFO_STREAM("Initial trajectory pose sent.");
             return true;
         }
         
@@ -123,7 +123,7 @@ class TrajectoryGen{
         }
 };
 
-#endif
+#endif // TRAJ_GEN_NODE_H_INCLUDED
 
 
 
