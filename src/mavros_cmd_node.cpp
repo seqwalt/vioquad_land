@@ -29,9 +29,6 @@ int main(int argc, char **argv)
     nh.param<bool>("/mavros_cmd_node/enable_sim", mavCmd.sim_enable, true); // used in setupCallback
     
     nh.param<double>("/mavros_cmd_node/max_err_acc", mavCmd.ctrl.max_err_acc, 20.0);     // largest magnitude (K_pos*err_pos + K_vel*err_vel) can have
-    nh.param<double>("/mavros_cmd_node/thrust_const", mavCmd.ctrl.thrust_const, 0.05);   // normalized thrust = 
-    nh.param<double>("/mavros_cmd_node/thrust_offset", mavCmd.ctrl.thrust_offset, 0.1);  //          thrust_const * Acc_des + thrust_offset
-                                                                                         // normalized thrust means thrust that has magnitude in rng [0,1]
     nh.param<double>("/mavros_cmd_node/Kpos_x", mavCmd.ctrl.Kpos_x, 12.0);
     nh.param<double>("/mavros_cmd_node/Kpos_y", mavCmd.ctrl.Kpos_y, 12.0);
     nh.param<double>("/mavros_cmd_node/Kpos_z", mavCmd.ctrl.Kpos_z, 10.0);
@@ -41,9 +38,7 @@ int main(int argc, char **argv)
     nh.param<double>("/mavros_cmd_node/Katt_x", mavCmd.ctrl.Katt_x, 20.0);   // ang_rate = K_att * err_att
     nh.param<double>("/mavros_cmd_node/Katt_y", mavCmd.ctrl.Katt_y, 20.0);
     nh.param<double>("/mavros_cmd_node/Katt_z", mavCmd.ctrl.Katt_z, 20.0);
-    
-    cout << "shouldn't be zero: " << mavCmd.ctrl.Kpos_x << endl;
-    
+        
     // Subscribers
     mavCmd.mode_sub = nh.subscribe
             ("mavros/state", 1, &MavrosCmd::modeCallback, &mavCmd); // http://wiki.ros.org/roscpp_tutorials/Tutorials/UsingClassMethodsAsCallbacks

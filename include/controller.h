@@ -29,11 +29,11 @@ class Controller {
         double Kpos_x, Kpos_y, Kpos_z;
         double Kvel_x, Kvel_y, Kvel_z;
         double Katt_x, Katt_y, Katt_z;
-        double thrust_const, thrust_offset, max_err_acc;
+        double max_err_acc;
 
-        Eigen::Vector3d K_pos = Eigen::Vector3d(Kpos_x, Kpos_y, Kpos_z);
-        Eigen::Vector3d K_vel = Eigen::Vector3d(Kvel_x, Kvel_y, Kvel_z);
-        Eigen::Vector3d K_att = Eigen::Vector3d(Katt_x, Katt_y, Katt_z);
+        Eigen::Vector3d K_pos;
+        Eigen::Vector3d K_vel;
+        Eigen::Vector3d K_att;
         
         // Position + heading tracking controller
         // Give PX4 the setpoint positions/velocities/accels and heading (yaw)
@@ -68,12 +68,12 @@ class Controller {
             // Compute reference attitude R_ref
             geometry_msgs::Vector3 a = ref.acceleration;
             Eigen::Vector3d acc_ref(a.x, a.y, a.z);
-
-            K_pos = Eigen::Vector3d(10, 10, 20);
-            K_vel = Eigen::Vector3d(5, 5, 10);
-            max_err_acc = 10;
+            
+            K_pos = Eigen::Vector3d(Kpos_x, Kpos_y, Kpos_z);
+            K_vel = Eigen::Vector3d(Kvel_x, Kvel_y, Kvel_z);
+                
             Eigen::Vector3d acc_err = K_pos.asDiagonal()*err_pos + K_vel.asDiagonal()*err_vel;
-            Eigen::Vector3d acc_des = acc_ref + g*e3 - clip(acc_err, max_err_acc); // vector in direction of desired thrust
+            Eigen::Vector3d acc_des = acc_ref - g*e3 - clip(acc_err, max_err_acc); // vector in direction of desired thrust
             Eigen::Vector3d zb = acc_des / acc_des.norm();
             Eigen::Vector3d y_heading = Eigen::Vector3d(-sin(ref.yaw), cos(ref.yaw), 0); // heading vector
             Eigen::Vector3d xb = y_heading.cross(zb) / (y_heading.cross(zb)).norm();
@@ -85,13 +85,14 @@ class Controller {
             R_ref.col(2) = zb;
             
             // --- Attitude setpoint --- //
-            Eigen::Quaterniond quat_ref(R_ref); // convert to NED
+            Eigen::Quaterniond quat_ref(R_ref);
             inputs.orientation = tf2::toMsg(quat_ref);
 
             // Attitude error
             err_att = 0.5 * vee(R_ref.transpose()*R_curr - R_curr.transpose()*R_ref); // attitude error
             
             // --- Angular rate setpoint (K_att = 20.0) --- //
+            K_att = Eigen::Vector3d(Katt_x, Katt_y, Katt_z);
             Eigen::Vector3d ang_rate = K_att.asDiagonal()*err_att;
             tf2::toMsg(ang_rate, inputs.body_rate); // fill inputs.body_rate
 
@@ -100,9 +101,7 @@ class Controller {
             
             // --- Thrust setpoint --- //
             double thrust_des = (acc_des).dot(R_curr*e3);
-            thrust_const  = 0.04;
-            thrust_offset = 0.2484;
-            inputs.thrust = (float)std::max(0.0, std::min(1.0, thrust_const * thrust_des + thrust_offset));
+            inputs.thrust = (float)std::max(0.0, std::min(1.0, thrust_map(thrust_des) ));
         }
         
         template <class T>
@@ -116,7 +115,7 @@ class Controller {
         };
         
     private:
-        const double g = 9.81;
+        const double g = -9.81;
         const Eigen::Vector3d e3 = Eigen::Vector3d(0,0,1);
         
         // The "vee" operator converts a skew-symm matrix to a vector
@@ -135,6 +134,17 @@ class Controller {
             // scale it's magnitude to mag and return scaled vec.
             // ELSE, return unscaled vec.
             return (vec.norm() > mag) ? vec*(mag/vec.norm()) : vec;
+        }
+        
+        double thrust_map(double th){
+            // input: mass-normalized thrust
+            // output: PX4-normalized thrust ([0,1])
+            double a = 0.00013850414341400538;
+            double b = -0.005408755617324549;
+            double c = 0.11336157680888627;
+            double d = -0.0022807568577082674;
+            double norm_th = a*th*th*th + b*th*th + c*th + d;
+            return norm_th;
         }
 };
 

@@ -14,18 +14,14 @@
         <param name="ctrl_mode" type="string" value="$(arg controller)" />
         <param name="enable_sim" value="$(arg gazebo_simulation)" />
         
-        <param name="max_err_acc" value="10.0" />
-        <!-- <param name="thrust_const" value="0.068" /> -->
-        <!-- <param name="thrust_offset" value="0.045" /> -->
-	<param name="thrust_const" value="0.06" />
-        <param name="thrust_offset" value="0.1" />
-        
-        <param name="Kpos_x" value="16.0" />
-        <param name="Kpos_y" value="16.0" />
-        <param name="Kpos_z" value="16.0" />
-        <param name="Kvel_x" value="5.6" />
-        <param name="Kvel_y" value="5.6" />
-        <param name="Kvel_z" value="5.6" />
+        <param name="max_err_acc" value="15.0" />
+
+        <param name="Kpos_x" value="10.0" />
+        <param name="Kpos_y" value="10.0" />
+        <param name="Kpos_z" value="20.0" />
+        <param name="Kvel_x" value="5.0" />
+        <param name="Kvel_y" value="5.0" />
+        <param name="Kvel_z" value="10.0" />
         <param name="Katt_x" value="20" />
         <param name="Katt_y" value="20" />
         <param name="Katt_z" value="20" />
