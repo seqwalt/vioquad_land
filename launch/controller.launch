@@ -1,7 +1,7 @@
 <launch>
     
     <!-- Gazebo config -->
-    <arg name="simulation" default="true" />
+    <arg name="simulation" default="false" />
     
     <!-- Controller config -->
     <arg name="controller" default="position" /> <!-- options: geometric, position -->
