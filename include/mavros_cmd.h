@@ -1,5 +1,5 @@
-#ifndef MAVROS_CMD_NODE_H_INCLUDED
-#define MAVROS_CMD_NODE_H_INCLUDED
+#ifndef MAVROS_CMD_H_INCLUDED
+#define MAVROS_CMD_H_INCLUDED
 
 #include <ros/ros.h>
 #include <mavros/mavros.h>
@@ -13,9 +13,9 @@
 
 #include <iostream>
 
-#include "quad_control/InitTraj.h"     // custom service
-#include "quad_control/FlatOutputs.h"  // custom message
-#include "controller.h"
+#include "quad_control/InitSetpoint.h"  // custom service
+#include "quad_control/FlatOutputs.h"   // custom message
+#include "tracking_controller.h"
 
 using namespace std;
 
@@ -24,17 +24,17 @@ class MavrosCmd {
         MavrosCmd(){
             flight_state = INITIALIZATION;
             received_home_pose = false;
-            trajDone = false;
+            mission_done = false;
 
             mode_request = ros::Time::now();
             land_request = ros::Time::now();
-            traj_request = ros::Time::now();
+            setpnt_request = ros::Time::now();
             print_request = ros::Time::now();
         }
 
         Controller ctrl;
         
-        enum ControllerType { POSITION, GEOMETRIC } ctrl_mode; // chosen in launch file
+        enum ControllerType { POSITION, GEOMETRIC, MPC } ctrl_mode; // chosen in launch file
         bool sim_enable;
         mavros_msgs::State currentModes;
 
@@ -49,8 +49,8 @@ class MavrosCmd {
 
         ros::ServiceClient arming_client;
         ros::ServiceClient set_mode_client;
-        ros::ServiceClient init_traj_client;
-        ros::ServiceClient send_traj_client;
+        ros::ServiceClient init_setpnt_client;
+        ros::ServiceClient streamimg_client;
 
         ros::Timer cmdloop_timer;
         ros::Timer setup_timer;
@@ -68,12 +68,12 @@ class MavrosCmd {
                     if (!received_home_pose) {
                         waitForData(&received_home_pose, "Waiting for home pose.");
                         ROS_INFO("Got home pose.");
-                    } else if(ros::Time::now() - traj_request > ros::Duration(2.0)) {
-                        traj_request = ros::Time::now();
+                    } else if(ros::Time::now() - setpnt_request > ros::Duration(2.0)) {
+                        setpnt_request = ros::Time::now();
                         //ROS_INFO("Waiting for initial trajectory pose.");
-                        if (init_traj_client.call(init_traj) && init_traj.response.success) {
-                            ROS_INFO_STREAM("Initial traj position: " << endl << init_traj.response.position);
-                            ROS_INFO_STREAM("Initial traj yaw     : " << init_traj.response.yaw);
+                        if (init_setpnt_client.call(init_setpnt) && init_setpnt.response.success) {
+                            ROS_INFO_STREAM("Initial setpoint position: " << endl << init_setpnt.response.position);
+                            ROS_INFO_STREAM("Initial setpoint yaw     : " << init_setpnt.response.yaw);
                             flight_state = TAKEOFF;
                         }
                     }
@@ -104,8 +104,8 @@ class MavrosCmd {
                 }
                 case TO_START_POSE: {
                     // Go to start of trajectory then hover
-                    geometry_msgs::Point firstPosition = init_traj.response.position;
-                    double takeoff_yaw = init_traj.response.yaw;
+                    geometry_msgs::Point firstPosition = init_setpnt.response.position;
+                    double takeoff_yaw = init_setpnt.response.yaw;
                     Eigen::AngleAxisd rotation_vector(takeoff_yaw, Eigen::Vector3d(0,0,1));  // rotate about z-axis
                     Eigen::Quaterniond firstQuat(rotation_vector); // compute yaw rotation as a quaternion
 
@@ -141,17 +141,17 @@ class MavrosCmd {
                 case MISSION: {
                     // Request trajectory data. Each time trajectory data is sent, 
                     // mavRefCallback() will send a control input
-                    if (!trajDone) {
+                    if (!mission_done) {
                         // request the trajectory to be sent
-                        if(!send_traj.response.success){
+                        if(!start_stream.response.success){
                             pos_pub.publish(firstPose_msg); // fixed hover while waiting for trajectory data
-                            if(ros::Time::now() - traj_request > ros::Duration(2.0)){
+                            if(ros::Time::now() - setpnt_request > ros::Duration(2.0)){
                                 //ROS_INFO("Requesting trajectory.");
-                                send_traj_client.call(send_traj);
-                                traj_request = ros::Time::now();
+                                streamimg_client.call(start_stream);
+                                setpnt_request = ros::Time::now();
                             }
                         } else {
-                            ROS_INFO_ONCE("Tracking trajectory.");
+                            ROS_INFO_ONCE("Executing mission.");
                         }
                     } else {
                         geometry_msgs::PoseStamped hover_msg;
@@ -205,7 +205,7 @@ class MavrosCmd {
         // ctrl_mode is a parameter set during node start-up
         void mavRefCallback(const quad_control::FlatOutputs &flatRefMsg) {
             // Reference info
-            trajDone = flatRefMsg.trajectoryDone;
+            mission_done = flatRefMsg.reached_goal;
 
             // Current State info
             curState.pose = curPose;
@@ -277,8 +277,8 @@ class MavrosCmd {
 
         mavros_msgs::CommandBool arm_cmd;
         mavros_msgs::SetMode mavros_set_mode;
-        quad_control::InitTraj init_traj;
-        std_srvs::Trigger send_traj;
+        quad_control::InitSetpoint init_setpnt;
+        std_srvs::Trigger start_stream;
 
         geometry_msgs::Pose home_pose;
         geometry_msgs::PoseStamped firstPose_msg;
@@ -288,12 +288,12 @@ class MavrosCmd {
         Controller::State curState;
         mavros_msgs::AttitudeTarget attInputs;
         mavros_msgs::PositionTarget posYawInputs;
-        bool trajDone;
+        bool mission_done;
         bool try_to_arm = true;
 
         ros::Time mode_request;
         ros::Time land_request;
-        ros::Time traj_request;
+        ros::Time setpnt_request;
         ros::Time print_request;
         bool received_home_pose;
 
@@ -309,4 +309,4 @@ class MavrosCmd {
         };
 };
 
-#endif // MAVROS_CMD_NODE_H_INCLUDED
+#endif // MAVROS_CMD_H_INCLUDED

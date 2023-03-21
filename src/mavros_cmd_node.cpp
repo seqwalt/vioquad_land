@@ -3,7 +3,7 @@
  * @brief Offboard control node for hardware flight using mavros and PX4
  */
 
-#include "mavros_cmd_node.h"
+#include "mavros_cmd.h"
 
 using namespace std;
 
@@ -15,18 +15,26 @@ int main(int argc, char **argv)
     MavrosCmd mavCmd;
 
     // Parameters
+    nh.param<bool>("/mavros_cmd_node/enable_sim", mavCmd.sim_enable, false); // used in setupCallback
+    
     string ctrl_mode_str;
     nh.param<string>("/mavros_cmd_node/ctrl_mode", ctrl_mode_str, "position"); // default is position controller if not set from launch file
     if (ctrl_mode_str == "geometric"){
-        mavCmd.ctrl_mode = MavrosCmd::GEOMETRIC;
+        if (mavCmd.sim_enable){
+            mavCmd.ctrl_mode = MavrosCmd::GEOMETRIC;
+        } else {
+            ROS_ERROR_STREAM("Geometric control not yet supported in hardware. Shutting down mavros_cmd_node ...");
+            ros::shutdown();
+        }
     } else if (ctrl_mode_str == "position"){
         mavCmd.ctrl_mode = MavrosCmd::POSITION;
+    } else if (ctrl_mode_str == "mpc") {
+        mavCmd.ctrl_mode = MavrosCmd::MPC;
     } else {
-        ROS_ERROR_STREAM("Error: no controller type named \'" << ctrl_mode_str << "\'. Shutting down mavros_cmd_node ...");
+        ROS_ERROR_STREAM("mavros_cmd_node.cpp: No controller type named \'" << ctrl_mode_str << "\'. Shutting down mavros_cmd_node ...");
         ros::shutdown();
     }
     
-    nh.param<bool>("/mavros_cmd_node/enable_sim", mavCmd.sim_enable, true); // used in setupCallback
     nh.param<double>("/mavros_cmd_node/max_err_acc", mavCmd.ctrl.max_err_acc, 20.0);     // largest magnitude (K_pos*err_pos + K_vel*err_vel) can have
     nh.param<double>("/mavros_cmd_node/Kpos_x", mavCmd.ctrl.K_pos[0], 12.0);
     nh.param<double>("/mavros_cmd_node/Kpos_y", mavCmd.ctrl.K_pos[1], 12.0);
@@ -60,9 +68,10 @@ int main(int argc, char **argv)
     mavCmd.arming_client = nh.serviceClient<mavros_msgs::CommandBool>("mavros/cmd/arming");
     mavCmd.set_mode_client = nh.serviceClient<mavros_msgs::SetMode>("mavros/set_mode");
     // Service client for requesting the starting position and heading of the trajectory
-    mavCmd.init_traj_client = nh.serviceClient<quad_control::InitTraj>("initial_reference");
+    mavCmd.init_setpnt_client = nh.serviceClient<quad_control::InitSetpoint>("initial_reference");
     // Service client for requesting that the trajectory be published by trajectory_gen_node
-    mavCmd.send_traj_client = nh.serviceClient<std_srvs::Trigger>("send_trajectory");
+    //      OR that the mpc control inputs be published by mpc_node
+    mavCmd.streamimg_client = nh.serviceClient<std_srvs::Trigger>("stream_trigger");
 
     // Timers
     bool autostart = false;

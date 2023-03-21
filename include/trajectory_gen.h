@@ -1,5 +1,5 @@
-#ifndef TRAJ_GEN_NODE_H_INCLUDED
-#define TRAJ_GEN_NODE_H_INCLUDED
+#ifndef TRAJ_GEN_H_INCLUDED
+#define TRAJ_GEN_H_INCLUDED
 
 #include <ros/ros.h>
 #include <geometry_msgs/PoseStamped.h>
@@ -18,7 +18,7 @@
 #include <string>
 
 #include <std_srvs/Trigger.h>
-#include "quad_control/InitTraj.h"     // custom service 
+#include "quad_control/InitSetpoint.h"     // custom service 
 #include "quad_control/FlatOutputs.h"  // custorm message
 
 using namespace std;
@@ -36,7 +36,7 @@ class TrajectoryGen{
         
         void trajCallback(const ros::TimerEvent &event){
             if (iter < numRows){
-                ref.trajectoryDone = false;
+                ref.reached_goal = false;
                 ref.position.x = trajMatrix(iter,1);
                 ref.position.y = trajMatrix(iter,2);
                 ref.position.z = trajMatrix(iter,3);
@@ -50,7 +50,7 @@ class TrajectoryGen{
                 traj_pub.publish(ref);
                 iter += 1;
             } else {
-                ref.trajectoryDone = true;
+                ref.reached_goal = true;
                 ref.position.x = trajMatrix(numRows-1,1);
                 ref.position.y = trajMatrix(numRows-1,2);
                 ref.position.z = trajMatrix(numRows-1,3);
@@ -74,7 +74,7 @@ class TrajectoryGen{
             return true;
         }
         
-        bool initRefCallback(quad_control::InitTraj::Request &req, quad_control::InitTraj::Response &res){
+        bool initRefCallback(quad_control::InitSetpoint::Request &req, quad_control::InitSetpoint::Response &res){
             res.success = true;
             res.position.x = trajMatrix(0,1);
             res.position.y = trajMatrix(0,2);
@@ -123,7 +123,7 @@ class TrajectoryGen{
         }
 };
 
-#endif // TRAJ_GEN_NODE_H_INCLUDED
+#endif // TRAJ_GEN_H_INCLUDED
 
 
 

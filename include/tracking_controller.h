@@ -1,5 +1,5 @@
-#ifndef CONTROLLER_H_INCLUDED
-#define CONTROLLER_H_INCLUDED
+#ifndef TRACKING_CONTROLLER_H_INCLUDED
+#define TRACKING_CONTROLLER_H_INCLUDED
 
 #include <ros/ros.h>
 #include <geometry_msgs/PoseStamped.h>
@@ -91,7 +91,7 @@ class Controller {
             
             // --- Thrust setpoint --- //
             double thrust_des = (acc_des).dot(R_curr*e3);
-            inputs.thrust = (float)std::max(0.0, std::min(1.0, thrust_map(thrust_des) ));
+            inputs.thrust = thrust_map(thrust_des);
         }
         
         template <class T>
@@ -126,7 +126,8 @@ class Controller {
             return (vec.norm() > mag) ? vec*(mag/vec.norm()) : vec;
         }
         
-        double thrust_map(double th){
+        float thrust_map(double th){
+            // determined for SIMULATION iris quadcopter only
             // input: mass-normalized thrust
             // output: PX4-normalized thrust ([0,1])
             double a = 0.00013850414341400538;
@@ -134,11 +135,11 @@ class Controller {
             double c = 0.11336157680888627;
             double d = -0.0022807568577082674;
             double norm_th = a*th*th*th + b*th*th + c*th + d;
-            return norm_th;
+            return (float)std::max(0.0, std::min(1.0, norm_th ));
         }
 };
 
-#endif // CONTROLLER_H_INCLUDED
+#endif // TRACKING_CONTROLLER_H_INCLUDED
 
 
 

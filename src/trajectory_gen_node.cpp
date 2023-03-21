@@ -3,7 +3,7 @@
  * @brief Trajectory generation node for hardware flight using mavros and PX4
  */
 
-#include "trajectory_gen_node.h"
+#include "trajectory_gen.h"
 
 using namespace std;
 
@@ -31,7 +31,7 @@ int main(int argc, char **argv)
     ros::ServiceServer init_traj_server = nh.advertiseService("initial_reference", &TrajectoryGen::initRefCallback, &mavTraj);
 
     // Service server for starting the traj_timer (i.e. to start publishing the trajectory)
-    ros::ServiceServer send_traj_server = nh.advertiseService("send_trajectory", &TrajectoryGen::sendTrajCallback, &mavTraj);
+    ros::ServiceServer send_traj_server = nh.advertiseService("stream_trigger", &TrajectoryGen::sendTrajCallback, &mavTraj);
 
     ros::spin();
     return 0;
