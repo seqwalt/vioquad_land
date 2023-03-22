@@ -1,3 +1,0 @@
-/home/sequoyah/Documents/Research/ARC_lab/VIO/vioquad_ws/src/quad_control/acado/build/CMakeFiles/rebuild_cache.dir
-/home/sequoyah/Documents/Research/ARC_lab/VIO/vioquad_ws/src/quad_control/acado/build/CMakeFiles/edit_cache.dir
-/home/sequoyah/Documents/Research/ARC_lab/VIO/vioquad_ws/src/quad_control/acado/build/CMakeFiles/quadrotor_mpc_codegen.dir
