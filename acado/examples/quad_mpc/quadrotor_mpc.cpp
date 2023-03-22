@@ -43,8 +43,8 @@ int main( ){
 
   // Parameters with exemplary values. These are set/overwritten at runtime.
   const double t_start = 0.0;     // Initial time [s]
-  const double t_end = 2.0;       // Time horizon [s]
-  const double dt = 0.02;          // Discretization time [s]
+  const double t_end = 5.0;       // Time horizon [s]
+  const double dt = 0.1;          // Discretization time [s]
   const int N = round(t_end/dt);  // Number of nodes
   const double g_z = 9.8066;      // Gravity is everywhere [m/s^2]
   const double w_max_yaw = 1;     // Maximal yaw rate [rad/s]
@@ -106,7 +106,8 @@ int main( ){
   mpc.set(DISCRETIZATION_TYPE,    MULTIPLE_SHOOTING);   // good convergence
   mpc.set(SPARSE_QP_SOLUTION,     FULL_CONDENSING_N2);  // due to qpOASES
   mpc.set(INTEGRATOR_TYPE,        INT_IRK_GL4);         // accurate
-  mpc.set(NUM_INTEGRATOR_STEPS,   N);
+  //mpc.set(NUM_INTEGRATOR_STEPS,   N);			// original
+  mpc.set(NUM_INTEGRATOR_STEPS,   20);
   mpc.set(QP_SOLVER,              QP_QPOASES);          // free, source code
   mpc.set(HOTSTART_QP,            YES);
   mpc.set(CG_USE_OPENMP,                    YES);       // paralellization

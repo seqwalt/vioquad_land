@@ -46,28 +46,30 @@ catkin_package(
     CATKIN_DEPENDS roscpp rospy std_msgs geometry_msgs message_runtime
 )
 
+set(codegen_dir "acado/examples/quad_mpc")
+
 add_library(acado STATIC
-    acado/generated_code/acado_qpoases_interface.cpp
-    acado/generated_code/acado_integrator.c
-    acado/generated_code/acado_solver.c
-    acado/generated_code/acado_auxiliary_functions.c
-    acado/qpoases/SRC/Bounds.cpp
-    acado/qpoases/SRC/Constraints.cpp
-    acado/qpoases/SRC/CyclingManager.cpp
-    acado/qpoases/SRC/Indexlist.cpp
-    acado/qpoases/SRC/MessageHandling.cpp
-    acado/qpoases/SRC/QProblem.cpp
-    acado/qpoases/SRC/QProblemB.cpp
-    acado/qpoases/SRC/SubjectTo.cpp
-    acado/qpoases/SRC/Utils.cpp
-    acado/qpoases/SRC/EXTRAS/SolutionAnalysis.cpp
+    ${codegen_dir}/autogen_code/acado_qpoases_interface.cpp
+    ${codegen_dir}/autogen_code/acado_integrator.c
+    ${codegen_dir}/autogen_code/acado_solver.c
+    ${codegen_dir}/autogen_code/acado_auxiliary_functions.c
+    ${codegen_dir}/qpoases/SRC/Bounds.cpp
+    ${codegen_dir}/qpoases/SRC/Constraints.cpp
+    ${codegen_dir}/qpoases/SRC/CyclingManager.cpp
+    ${codegen_dir}/qpoases/SRC/Indexlist.cpp
+    ${codegen_dir}/qpoases/SRC/MessageHandling.cpp
+    ${codegen_dir}/qpoases/SRC/QProblem.cpp
+    ${codegen_dir}/qpoases/SRC/QProblemB.cpp
+    ${codegen_dir}/qpoases/SRC/SubjectTo.cpp
+    ${codegen_dir}/qpoases/SRC/Utils.cpp
+    ${codegen_dir}/qpoases/SRC/EXTRAS/SolutionAnalysis.cpp
 )
 
 target_include_directories(acado PUBLIC
-    acado/generated_code
-    acado/qpoases
-    acado/qpoases/INCLUDE
-    acado/qpoases/SRC
+    ${codegen_dir}/autogen_code
+    ${codegen_dir}/qpoases
+    ${codegen_dir}/qpoases/INCLUDE
+    ${codegen_dir}/qpoases/SRC
 )
 
 target_link_libraries(acado ${catkin_LIBRARIES})

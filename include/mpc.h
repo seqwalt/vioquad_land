@@ -25,8 +25,6 @@
 #include "quad_control/InitSetpoint.h" // custom service 
 #include "quad_control/FlatOutputs.h"  // custorm message
 
-// TODO configure CMakeLists.txt for acado
-// TODO move acado/qpoases folders/files into filesystem
 #include "acado_common.h"
 #include "acado_auxiliary_functions.h"
 
@@ -134,8 +132,8 @@ class MPC {
                 // Perform the feedback step
                 acado_feedbackStep();
                 // Shift the initialization (look at acado_common.h)
-//                 acado_shiftStates(2, 0, 0);
-//                 acado_shiftControls(0);
+                acado_shiftStates(2, 0, 0);
+                acado_shiftControls(0);
                 // Prepare for the next step
                 acado_preparationStep();
             }
@@ -155,8 +153,8 @@ class MPC {
             mpcInputs.thrust = thrust_map(T);
             mpc_pub.publish(mpcInputs); // set attitude, body rate and thrust to mavros
             
-            acado_printDifferentialVariables();
-            acado_printControlVariables();
+            //acado_printDifferentialVariables();
+            //acado_printControlVariables();
 //             real_t te = acado_toc( &t );
 //             cout << "mpcCallback time: " << te << "sec" << endl;
         }
@@ -193,18 +191,24 @@ class MPC {
             int i;
             float s;
             // Initialize the states
+            float xi, yi, zi, xf, yf, zf;	// initial and final position
+            xi = 2.0f; yi = 2.0f; zi = 1.5f;
+            xf = 0.0f; yf = 0.0f; zf = 1.0f;
+            float vxi, vyi, vzi, vxf, vyf, vzf; // initial and final velocity
+            vxi = 0.0f; vyi = 0.0f; vzi = 0.0f;
+            vxf = 0.0f; vyf = 0.0f; vzf = 0.0f;
             for (i = 0; i < N + 1; ++i){
-                s = (float)i/(float)N; // linear interp parameter in range [0,1]
-                acadoVariables.x[i * NX + 0] = lerp(2.0f, 0.0f, s); // x; 2 if s==0, 0 if s==1
-                acadoVariables.x[i * NX + 1] = lerp(2.0f, 0.0f, s); // y
-                acadoVariables.x[i * NX + 2] = lerp(1.5f, 1.0f, s); // z
+                s = (float)i/(float)N; // interp parameter in range [0,1]
+                acadoVariables.x[i * NX + 0] = lerp(xi, xf, s); // x; 2 if s==0, 0 if s==1
+                acadoVariables.x[i * NX + 1] = lerp(yi, yf, s); // y
+                acadoVariables.x[i * NX + 2] = lerp(zi, zf, s); // z
                 acadoVariables.x[i * NX + 3] = 1.0; // qw
                 acadoVariables.x[i * NX + 4] = 0.0; // qx
                 acadoVariables.x[i * NX + 5] = 0.0; // qy
                 acadoVariables.x[i * NX + 6] = 0.0; // qz
-                acadoVariables.x[i * NX + 7] = 0.0; // vx
-                acadoVariables.x[i * NX + 8] = 0.0; // vy
-                acadoVariables.x[i * NX + 9] = 0.0; // vz
+                acadoVariables.x[i * NX + 7] = lerp(vxi, xf-xi, vxf, s); // vx
+                acadoVariables.x[i * NX + 8] = lerp(vyi, yf-yi, vyf, s); // vy
+                acadoVariables.x[i * NX + 9] = lerp(vzi, zf-zi, vzf, s); // vz
             }
             // Initialize the controls and references
             for (i = 0; i < N; ++i){
@@ -215,33 +219,75 @@ class MPC {
                 acadoVariables.u[i * NU + 3] = 0.0; // w_z
 
                 // Initialize the references
-                acadoVariables.y[i * NY + 0] = 0.0; // x
-                acadoVariables.y[i * NY + 1] = 0.0; // y
-                acadoVariables.y[i * NY + 2] = 1.0; // z
-                acadoVariables.y[i * NY + 3] = 1.0; // qw
-                acadoVariables.y[i * NY + 4] = 0.0; // qx
-                acadoVariables.y[i * NY + 5] = 0.0; // qy
-                acadoVariables.y[i * NY + 6] = 0.0; // qz
-                acadoVariables.y[i * NY + 7] = 0.0; // vx
-                acadoVariables.y[i * NY + 8] = 0.0; // vy
-                acadoVariables.y[i * NY + 9] = 0.0; // vz
+                acadoVariables.y[i * NY + 0] = xf;  //  x
+                acadoVariables.y[i * NY + 1] = yf;  //  y
+                acadoVariables.y[i * NY + 2] = zf;  //  z
+                acadoVariables.y[i * NX + 3] = 1.0; // qw
+                acadoVariables.y[i * NX + 4] = 0.0; // qx
+                acadoVariables.y[i * NX + 5] = 0.0; // qy
+                acadoVariables.y[i * NX + 6] = 0.0; // qz
+                acadoVariables.y[i * NY + 7] = vxf; // vx
+                acadoVariables.y[i * NY + 8] = vyf; // vy
+                acadoVariables.y[i * NY + 9] = vzf; // vz
             }
             // Initialize the final reference
-            acadoVariables.yN[0] = 0.0; // x
-            acadoVariables.yN[1] = 0.0; // y
-            acadoVariables.yN[2] = 1.0; // z
+            acadoVariables.yN[0] = xf;  //  x
+            acadoVariables.yN[1] = yf;  //  y
+            acadoVariables.yN[2] = zf;  //  z
             acadoVariables.yN[3] = 1.0; // qw
             acadoVariables.yN[4] = 0.0; // qx
             acadoVariables.yN[5] = 0.0; // qy
             acadoVariables.yN[6] = 0.0; // qz
-            acadoVariables.yN[7] = 0.0; // vx
-            acadoVariables.yN[8] = 0.0; // vy
-            acadoVariables.yN[9] = 0.0; // vz
-            
+            acadoVariables.yN[7] = vxf; // vx
+            acadoVariables.yN[8] = vyf; // vy
+            acadoVariables.yN[9] = vzf; // vz
+
             /* MPC: initialize the current state feedback. */
-        #if ACADO_INITIAL_STATE_FIXED
-            for (i = 0; i < NX; ++i) acadoVariables.x0[i] = acadoVariables.x[i];
-        #endif
+            #if ACADO_INITIAL_STATE_FIXED
+                acadoVariables.x0[0] = xi; // x
+                acadoVariables.x0[1] = yi; // y
+                acadoVariables.x0[2] = zi; // z
+                acadoVariables.x0[3] = 1.0; // qw
+                acadoVariables.x0[4] = 0.0; // qx
+                acadoVariables.x0[5] = 0.0; // qy
+                acadoVariables.x0[6] = 0.0; // qz
+                acadoVariables.x0[7] = vxi; // vx
+                acadoVariables.x0[8] = vyi; // vy
+                acadoVariables.x0[9] = vzi; // vz
+            #endif
+
+            int n_sc = 14; // number of states and controls combined
+            int n_s = 10; // number of states
+            int blk_size = n_sc*n_sc; // block size
+            //for(size_t i = 0; i < N*blk_size; ++i) acadoVariables.WN[i] = 0.0;
+            for(size_t i = 0; i < N; ++i){
+                acadoVariables.W[i*blk_size] = 100; // x gain
+                acadoVariables.W[i*blk_size + n_sc + 1] = 100; // y gain
+                acadoVariables.W[i*blk_size + n_sc*2 + 2] = 1000; // z gain
+                acadoVariables.W[i*blk_size + n_sc*3 + 3] = 100; // qw gain
+                acadoVariables.W[i*blk_size + n_sc*4 + 4] = 100; // qx gain
+                acadoVariables.W[i*blk_size + n_sc*5 + 5] = 100; // qy gain
+                acadoVariables.W[i*blk_size + n_sc*6 + 6] = 100; // qz gain
+                acadoVariables.W[i*blk_size + n_sc*7 + 7] = 10; // v_x gain
+                acadoVariables.W[i*blk_size + n_sc*8 + 8] = 10; // v_y gain
+                acadoVariables.W[i*blk_size + n_sc*9 + 9] = 10; // v_z gain
+                acadoVariables.W[i*blk_size + n_sc*10 + 10] = 1; // T gain
+                acadoVariables.W[i*blk_size + n_sc*11 + 11] = 1; // w_x gain
+                acadoVariables.W[i*blk_size + n_sc*12 + 12] = 1; // w_y gain
+                acadoVariables.W[i*blk_size + n_sc*13 + 13] = 1; // w_z gain
+            }
+
+            //for(size_t i = 0; i < n_s*n_s; ++i) acadoVariables.WN[i] = 0.0;
+            acadoVariables.WN[0] = 10000; // x gain
+            acadoVariables.WN[n_s+1] = 10000; // y gain
+            acadoVariables.WN[n_s*2 + 2] = 100000; // z gain
+            acadoVariables.WN[n_s*3 + 3] = 10000; // qw gain
+            acadoVariables.WN[n_s*4 + 4] = 10000; // qx gain
+            acadoVariables.WN[n_s*5 + 5] = 10000; // qy gain
+            acadoVariables.WN[n_s*6 + 6] = 10000; // qz gain
+            acadoVariables.WN[n_s*7 + 7] = 1000; // vz gain
+            acadoVariables.WN[n_s*8 + 8] = 1000; // vz gain
+            acadoVariables.WN[n_s*9 + 9] = 1000; // vz gain
         }
         
         float thrust_map(double th){
@@ -256,19 +302,27 @@ class MPC {
             return (float)std::max(0.0, std::min(1.0, norm_th ));
         }
         
-        double rand_num() {
+        float lerp(float a, float b, float t){
+            // linear interpolation between a and b
+            assert(t >= 0.0f);
+            assert(t <= 1.0f);
+            return a + t * (b - a);
+        }
+        float lerp(float a, float b, float c, float t){
+            // linear interpolation between a, b and c
+            assert(t >= 0.0f);
+            assert(t <= 1.0f);
+            if (t <= 0.5f) return a + t * (b - a);
+            else return b + t * (c - b);
+        }
+        double rand_num(double min, double max) {
             // Making rng static ensures that it stays the same
             // between different invocations of the function
             static std::default_random_engine rng;
-            std::uniform_real_distribution<double> dist(-1.0, 1.0); 
-            return dist(rng); 
+            std::uniform_real_distribution<double> dist(min, max);
+            return dist(rng);
         }
-        
-        float lerp(float a, float b, float t){
-            assert(t <= 1.0f);
-            assert(t >= 0.0f);
-            return a + t * (b - a);
-        }
+
 };
 
 #endif // MPC_H_INCLUDED
