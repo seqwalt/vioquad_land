@@ -23,7 +23,8 @@ extern "C"
 }
 
 #include "INCLUDE/QProblemB.hpp"
-#include <iostream>
+//#include <iostream>
+//#include <assert.h>
 
 #if ACADO_COMPUTE_COVARIANCE_MATRIX == 1
 #include "INCLUDE/EXTRAS/SolutionAnalysis.hpp"
@@ -44,19 +45,25 @@ int acado_solve( void )
 	QProblemB qp( 60 );
 
 	returnValue retVal = qp.init(acadoWorkspace.H, acadoWorkspace.g, acadoWorkspace.lb, acadoWorkspace.ub, acado_nWSR, acadoWorkspace.y);
-	std::cout << "retVal = " << (int)retVal << std::endl<< std::endl;
-	// std::cout << "H = "<< std::endl << typeid(*acadoWorkspace.H).name() << std::endl<< std::endl;
-	std::cout << "H = "<< std::endl;
-	for(std::size_t i = 0; i != 3600; ++i) std::cout << acadoWorkspace.H[i] << std::endl;
-	std::cout << "g = "<< std::endl;
-	for(std::size_t i = 0; i != 60; ++i) std::cout << acadoWorkspace.g[i] << std::endl;
-	std::cout << "lb = "<< std::endl;
-	for(std::size_t i = 0; i != 60; ++i) std::cout << acadoWorkspace.lb[i] << std::endl;
-	std::cout << "ub = "<< std::endl;
-	for(std::size_t i = 0; i != 60; ++i) std::cout << acadoWorkspace.ub[i] << std::endl;
-	std::cout << "y = "<< std::endl;
-	for(std::size_t i = 0; i != 60; ++i) std::cout << acadoWorkspace.y[i] << std::endl;
-	std::cout << "nWSR = " << std::endl<< acado_nWSR << std::endl<< std::endl;
+	// std::cout << "retVal = " << (int)retVal << std::endl<< std::endl;
+	// std::cout << "H = "<< std::endl;
+	// for(std::size_t row = 0; row != 60; ++row){
+	// 	for(std::size_t col = 0; col != 60; ++col){
+	// 		int el = row*60 + col;
+	// 		assert(el <= 3600);
+	// 		std::cout << acadoWorkspace.H[el] << " ";
+	// 	}
+	// 	std::cout << std::endl;
+	// }
+	// std::cout << std::endl<< "g = "<< std::endl;
+	// for(std::size_t i = 0; i != 60; ++i) std::cout << acadoWorkspace.g[i] << " ";
+	// std::cout << std::endl<< std::endl<< "lb = "<< std::endl;
+	// for(std::size_t i = 0; i != 60; ++i) std::cout << acadoWorkspace.lb[i] << " ";
+	// std::cout << std::endl<< std::endl<< "ub = "<< std::endl;
+	// for(std::size_t i = 0; i != 60; ++i) std::cout << acadoWorkspace.ub[i] << " ";
+	// std::cout << std::endl<< std::endl<< "y = "<< std::endl;
+	// for(std::size_t i = 0; i != 60; ++i) std::cout << acadoWorkspace.y[i] << " ";
+	// std::cout << std::endl<< std::endl<< "nWSR = " << acado_nWSR << std::endl<< std::endl;
 
   qp.getPrimalSolution( acadoWorkspace.x );
   qp.getDualSolution( acadoWorkspace.y );

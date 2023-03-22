@@ -71,12 +71,18 @@ int main( )
 
 	/* Initialize the solver. */
 	init_acadoVariables();
-	acado_initializeSolver();
+	status = acado_initializeSolver();
+	if (status != 0){
+		std::cout << "Initialize solver problem! QP status: " << status << std::endl;
+	}
 
 	if( VERBOSE ) acado_printHeader();
 
 	/* Prepare first step */
-	acado_preparationStep();
+	status = acado_preparationStep();
+	if (status != 0){
+		std::cout << " Preparation step problem! QP status: " << status << std::endl;
+	}
 
 	/* Get the time before start of the loop. */
 	acado_tic( &t );
@@ -95,7 +101,7 @@ int main( )
 		/* Apply the new control immediately to the process, first NU components. */
 
 		std::cout << "Real-Time Iteration " << iter << ", KKT Tolerance = " << std::scientific << acado_getKKT()
-		<< " curr objective" << std::scientific << acado_getObjective() << std::endl;
+		<< " curr objective = " << std::scientific << acado_getObjective() << std::endl;
 
 		/* Optional: shift the initialization (look at acado_common.h). */
 		acado_shiftStates(2, 0, 0);
@@ -126,10 +132,10 @@ void init_acadoVariables(){
     float s;
     // Initialize the states
 		float xi, yi, zi, xf, yf, zf;	// initial and final position
-		xi = 0.0f; yi = 0.0f; zi = 1.0f;
+		xi = 1.0f; yi = 0.5f; zi = 1.0f;
 		xf = 0.0f; yf = 0.0f; zf = 2.0f;
 		float vxi, vyi, vzi, vxf, vyf, vzf; // initial and final velocity
-		vxi = 0.0f; vyi = 0.0f; vzi = 0.0f;
+		vxi = 1.0f; vyi = 0.3f; vzi = -0.2f;
 		vxf = 0.0f; vyf = 0.0f; vzf = 0.0f;
     for (i = 0; i < N + 1; ++i){
         s = (float)i/(float)N; // interp parameter in range [0,1]
@@ -143,7 +149,7 @@ void init_acadoVariables(){
     // Initialize the controls and references
     for (i = 0; i < N; ++i){
         // Initize the controls
-        acadoVariables.u[i * NU + 0] = 0.0; // Thrust (mass-normalized)
+        acadoVariables.u[i * NU + 0] = 9.0; // Thrust (mass-normalized)
         acadoVariables.u[i * NU + 1] = 0.0; // a_x
         acadoVariables.u[i * NU + 2] = 0.0; // a_y
 
@@ -172,6 +178,30 @@ void init_acadoVariables(){
 		acadoVariables.x0[4] = vyi; // vy
 		acadoVariables.x0[5] = vzi; // vz
 #endif
+
+		int n_sc = 9; // number of states and controls combined
+		int n_s = 6; // number of states
+		int blk_size = n_sc*n_sc;
+		//for(size_t i = 0; i < N*blk_size; ++i) acadoVariables.WN[i] = 0.0;
+		for(size_t i = 0; i < N; ++i){
+			acadoVariables.W[i*blk_size] = 100; // x gain
+			acadoVariables.W[i*blk_size + n_sc + 1] = 100; // y gain
+			acadoVariables.W[i*blk_size + n_sc*2 + 2] = 100; // z gain
+			acadoVariables.W[i*blk_size + n_sc*3 + 3] = 10; // v_x gain
+			acadoVariables.W[i*blk_size + n_sc*4 + 4] = 10; // v_y gain
+			acadoVariables.W[i*blk_size + n_sc*5 + 5] = 10; // v_z gain
+			acadoVariables.W[i*blk_size + n_sc*6 + 6] = 1; // T gain
+			acadoVariables.W[i*blk_size + n_sc*7 + 7] = 1; // a_x gain
+			acadoVariables.W[i*blk_size + n_sc*8 + 8] = 1; // a_y gain
+		}
+
+		for(size_t i = 0; i < n_s*n_s; ++i) acadoVariables.WN[i] = 0.0;
+		acadoVariables.WN[0] = 10000; // x gain
+		acadoVariables.WN[n_s+1] = 10000; // y gain
+		acadoVariables.WN[n_s*2 + 2] = 10000; // z gain
+		acadoVariables.WN[n_s*3 + 3] = 1000; // vx gain
+		acadoVariables.WN[n_s*4 + 4] = 1000; // vy gain
+		acadoVariables.WN[n_s*5 + 5] = 1000; // vz gain
 }
 
 float lerp(float a, float b, float t){
