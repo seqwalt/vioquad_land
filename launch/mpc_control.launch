@@ -13,7 +13,7 @@
     </node>
 
     <!-- MPC node -->
-    <node pkg="quad_control" name="mpc_node" type="mpc_node" output="screen" />
+    <node pkg="quad_control" name="mpc_node" type="mpc_node" output="screen" required="true" />
 
 </launch>
 
