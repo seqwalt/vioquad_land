@@ -87,4 +87,10 @@ add_executable(mpc_node src/mpc_node.cpp)
 add_dependencies(mpc_node ${catkin_EXPORTED_TARGETS})
 target_link_libraries(mpc_node acado Eigen3::Eigen ${catkin_LIBRARIES})
 
+set(DO_TESTS TRUE)
+if(DO_TESTS)
+    add_executable(min_snap_test extra/tests/min_snap_traj_test.cpp)
+    target_link_libraries(min_snap_test acado Eigen3::Eigen)
+endif()
+
 include_directories(include ${catkin_INCLUDE_DIRS})

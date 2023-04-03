@@ -114,6 +114,20 @@ class MPC {
             
             // TODO use acado_shiftStates and acado_shiftControls instead of this:
             // Current quadcopter state
+            static int callback_iter = 0;
+//             if (callback_iter > 0){
+//                 acadoVariables.x0[7] = (curPose.position.x - acadoVariables.x0[0])/0.02;
+//                 acadoVariables.x0[8] = (curPose.position.y - acadoVariables.x0[1])/0.02;
+//                 acadoVariables.x0[9] = (curPose.position.z - acadoVariables.x0[2])/0.02;
+//                 acadoVariables.x0[0] = curPose.position.x;
+//                 acadoVariables.x0[1] = curPose.position.y;
+//                 acadoVariables.x0[2] = curPose.position.z;
+//                 acadoVariables.x0[3] = curPose.orientation.w;
+//                 acadoVariables.x0[4] = curPose.orientation.x;
+//                 acadoVariables.x0[5] = curPose.orientation.y;
+//                 acadoVariables.x0[6] = curPose.orientation.z;
+//             }
+            
             acadoVariables.x0[0] = curPose.position.x;
             acadoVariables.x0[1] = curPose.position.y;
             acadoVariables.x0[2] = curPose.position.z;
@@ -124,13 +138,12 @@ class MPC {
             acadoVariables.x0[7] = curVel.x;
             acadoVariables.x0[8] = curVel.y;
             acadoVariables.x0[9] = curVel.z;
-            
-//             cout << "q: " << curPose.orientation.w << " "
+
+                //             cout << "q: " << curPose.orientation.w << " "
 //                           << curPose.orientation.x << " "
 //                           << curPose.orientation.y << " "
 //                           << curPose.orientation.z << endl;
             
-            static int callback_iter = 0;
             callback_iter += 1;
             std::cout << "callback iteration: " << callback_iter << std::endl;
             
@@ -227,6 +240,8 @@ class MPC {
             }
             // Initialize the controls and references
             for (i = 0; i < N; ++i){
+                s = (float)i/(float)(N-1); // interp parameter in range [0,1]
+
                 // Initize the controls
                 acadoVariables.u[i * NU + 0] = 9.8; // Thrust (mass-normalized)
                 acadoVariables.u[i * NU + 1] = 0.0; // w_x
@@ -279,32 +294,31 @@ class MPC {
                 acadoVariables.W[i*blk_size] = 200; // x gain
                 acadoVariables.W[i*blk_size + n_sc + 1] = 200; // y gain
                 acadoVariables.W[i*blk_size + n_sc*2 + 2] = 500; // z gain
-                acadoVariables.W[i*blk_size + n_sc*3 + 3] = 600; // qw gain
-                acadoVariables.W[i*blk_size + n_sc*4 + 4] = 600; // qx gain
-                acadoVariables.W[i*blk_size + n_sc*5 + 5] = 600; // qy gain
-                acadoVariables.W[i*blk_size + n_sc*6 + 6] = 600; // qz gain
+                acadoVariables.W[i*blk_size + n_sc*3 + 3] = 25; // qw gain
+                acadoVariables.W[i*blk_size + n_sc*4 + 4] = 25; // qx gain
+                acadoVariables.W[i*blk_size + n_sc*5 + 5] = 25; // qy gain
+                acadoVariables.W[i*blk_size + n_sc*6 + 6] = 25; // qz gain
                 acadoVariables.W[i*blk_size + n_sc*7 + 7] = 10; // v_x gain
                 acadoVariables.W[i*blk_size + n_sc*8 + 8] = 10; // v_y gain
                 acadoVariables.W[i*blk_size + n_sc*9 + 9] = 10; // v_z gain
                 acadoVariables.W[i*blk_size + n_sc*10 + 10] = 1; // T gain
-                acadoVariables.W[i*blk_size + n_sc*11 + 11] = 1; // w_x gain
-                acadoVariables.W[i*blk_size + n_sc*12 + 12] = 1; // w_y gain
-                acadoVariables.W[i*blk_size + n_sc*13 + 13] = 1; // w_z gain
+                acadoVariables.W[i*blk_size + n_sc*11 + 11] = 5; // w_x gain
+                acadoVariables.W[i*blk_size + n_sc*12 + 12] = 5; // w_y gain
+                acadoVariables.W[i*blk_size + n_sc*13 + 13] = 5; // w_z gain
             }
 
             //for(int i = 0; i < n_s*n_s; ++i) acadoVariables.WN[i] = 0.0;
             acadoVariables.WN[0] = 200; // x gain
             acadoVariables.WN[n_s+1] = 200; // y gain
             acadoVariables.WN[n_s*2 + 2] = 500; // z gain
-            acadoVariables.WN[n_s*3 + 3] = 600; // qw gain
-            acadoVariables.WN[n_s*4 + 4] = 600; // qx gain
-            acadoVariables.WN[n_s*5 + 5] = 600; // qy gain
-            acadoVariables.WN[n_s*6 + 6] = 600; // qz gain
+            acadoVariables.WN[n_s*3 + 3] = 25; // qw gain
+            acadoVariables.WN[n_s*4 + 4] = 25; // qx gain
+            acadoVariables.WN[n_s*5 + 5] = 25; // qy gain
+            acadoVariables.WN[n_s*6 + 6] = 25; // qz gain
             acadoVariables.WN[n_s*7 + 7] = 10; // vz gain
             acadoVariables.WN[n_s*8 + 8] = 10; // vz gain
             acadoVariables.WN[n_s*9 + 9] = 10; // vz gain
             
-            for(int i = 0; i < n_s*n_s; ++i) acadoVariables.WN[i] = acadoVariables.WN[i]/1000.0;
         }
         
         float thrust_map(double th){

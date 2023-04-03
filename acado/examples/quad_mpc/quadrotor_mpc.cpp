@@ -49,8 +49,8 @@ int main( ){
   const double g_z = 9.8066;      // Gravity is everywhere [m/s^2]
   const double w_max_yaw = 1;     // Maximal yaw rate [rad/s]
   const double w_max_xy = 3;      // Maximal pitch and roll rate [rad/s]
-  const double T_min = 2;         // Minimal thrust [N]
-  const double T_max = 20;        // Maximal thrust [N]
+  const double T_min = 2;         // Minimal thrust [m/s^2]
+  const double T_max = 20;        // Maximal thrust [m/s^2]
 
   // System Dynamics
   f << dot(p_x) ==  v_x;
@@ -69,7 +69,7 @@ int main( ){
   h << p_x << p_y << p_z
     << q_w << q_x << q_y << q_z
     << v_x << v_y << v_z
-    << T << w_x << w_y << w_z;
+    << T - g_z << w_x << w_y << w_z;
 
   // End cost vector consists of all states (no inputs at last state).
   hN << p_x << p_y << p_z
