@@ -12,71 +12,77 @@
 #include <stdio.h>
 #include <random>
 
-#include <QProblem.hpp>
+//#include <QProblem.hpp>
+#include <qpOASES.hpp>
 
 using namespace std;
-using namespace Eigen;
+USING_NAMESPACE_QPOASES
 
 class MinSnapTraj {
     public:
-        // Variables/Datatypes
-        const static int order = 4; // order of piecewise polynomials
-        const static int numFlatOut = 4; // x, y, z, yaw
-        const static int numSteps = 2; // num time intervals (time points - 1)
-          // Create datatype to hold coefficients for all time intervals
-        typedef vector< Matrix<float, order, numFlatOut>, aligned_allocator<Matrix<float, order, numFlatOut>> > flatOutputCoeffs; 
         
+        
+        // Variables/Datatypes
+        const static int n = 4; // highest order of the piecewise polynomials
+        const static int numFlatOut = 4; // x, y, z, yaw
+        typedef vector< Eigen::Matrix<double, 2, 4>, Eigen::aligned_allocator<Eigen::Matrix<double, 2, 4>> > vectOfMatrix24d;
+        typedef Eigen::Matrix<double, 2, 4> Matrix24d;
+
         // Constructor
-        MinSnapTraj(float duration){
+        MinSnapTraj(int numIntervals, double duration){
             // Initialize
             finalTime = duration;
-            //numCons = 4*numSteps + 5*(numSteps + 1); // 4 for FOV constraint, 5 for boundary conditions 
-            numCons = 12;
-            numVars = (numSteps + 1)*numFlatOut*(order+1);
-            coeffs.reserve(numSteps);              // human-friendly coeff storage, type flatOutputCoeffs
-            c.reserve(numVars);  // decision variable c, type vector<float>
+            m = numIntervals;
+            numVars = m*numFlatOut*(n+1);
         }
         
-        void getCoeffs() {
-            //real_t H[numVars*numVars] = {0.0};  // size(H) = [numVars, numVars], init to zeros
-            //real_t A[numCons*numVars];          // size(A) = [numCons, numVars]
-            //real_t g[numVars] = {0.0};          // size(g) = [numVars, 1], set to zeros
-            //real_t lbA[numCons];
-            //real_t ubA[numCons];
+        int getCoeffs() {
             
-            // Keyframes
-            float keyframes[] = {
-                1.0f, 2.0f, 4.0f, 0.0f,  // x, y, z, yaw at initial time
-                1.0f, 1.0f, 3.0f, 0.0f,  // middle time
-                0.0f, 0.0f, 1.0f, 0.0f}; // final time
-            int array_len = (int)(sizeof(keyframes)/sizeof(keyframes[0]));
-            int numKey = array_len / numFlatOut; // number of keyframes
-            //numSteps = numKey - 1;
+            // Position and velocity boundary conditions (BC)
+            Matrix24d p0_bounds; // p=0 means 0th derivative
+            p0_bounds << 1.0f, 2.0f, 4.0f, 0.0f, // initial x, y, z, yaw
+                         0.0f, 0.0f, 1.0f, 0.0f; // final values
+            Matrix24d p1_bounds; // p=1 means 1st derivative
+            p1_bounds << 0.0f, 0.0f, 0.0f, 0.0f, // initial velocities
+                         0.0f, 0.0f, 0.0f, 0.0f; // final velocities
+            vectOfMatrix24d bounds;
+            bounds.push_back(p0_bounds);
+            bounds.push_back(p1_bounds);
+            int maxBoundOrder = bounds.size() - 1; // 0 if only position BC, 2 if up to acceleration BC
+            cout << "maxBoundOrder: " << maxBoundOrder << endl << endl;
             
             // Time points (one for each keyframe)
-            vector<float> time = linspace(0.0f, finalTime, numKey);
-            
+            vector<double> time = linspace(0.0, finalTime, m+1); // number of time points = numIntervals + 1
+            cout << "times: " << endl;
+            for(size_t i = 0; i < time.size(); i++) cout << time[i] << " ";
+            cout << endl << endl;
             
             // ---- Load values into H ---- //
             int k_r = 4; // min snap for pva trajectory
             int k_yaw = 2;
-            assert(k_r <= order && k_yaw <= 2);
-            Matrix<float, (numSteps+1)*numFlatOut*(order+1), (numSteps+1)*numFlatOut*(order+1)> H;
-            H = Matrix<float, (numSteps+1)*numFlatOut*(order+1), (numSteps+1)*numFlatOut*(order+1)>::Zero();
+            vector<int> k = {k_r, k_r, k_r, k_yaw}; // derivative for objective function for x,y,z,yaw
             
+            cout << "k: " << endl;
+            for(size_t i = 0; i < k.size(); i++) cout << k[i] << " ";
+            cout << endl << endl;
+            
+            assert(k_r <= n && k_yaw <= 2);
+            Eigen::MatrixXd H_eig(numVars, numVars);
+            H_eig = Eigen::MatrixXd::Zero(numVars, numVars);
+
             // Load x part
-            float factorial_term;
-            float temp;
-            float integral_term;
+            double factorial_term;
+            double temp;
+            double integral_term;
             int H_ind;
-            Matrix<float, order+1, order+1> Hx;
-            for(int ti = 0; ti <= numSteps; ti++){      // iterate over time points
+            Eigen::Matrix<double, n+1, n+1> Hx;
+            for(int ti = 0; ti <= m-1; ti++){      // iterate over time intervals
                 // temp matrix to store current time point block diagram for x coeffs
-                Hx = Matrix<float, order+1, order+1>::Zero();
-                for(int i = k_r; i <= order; i++){      // iterate over orders
-                    for(int j = k_r; j <= order; j++){
-                        factorial_term = (float)fact(i)*fact(j)/(fact(i-k_r)*fact(j-k_r));
-                        temp = (float)(i+j-2*k_r+1);
+                Hx = Eigen::Matrix<double, n+1, n+1>::Zero();
+                for(int i = k_r; i <= n; i++){      // iterate over orders
+                    for(int j = k_r; j <= n; j++){
+                        factorial_term = fact(i)*fact(j)/(fact(i-k_r)*fact(j-k_r));
+                        temp = (double)(i+j-2*k_r+1);
                         integral_term = (1/temp)*(pow(time[ti+1],temp) - pow(time[ti],temp));
                         if (i == j){
                             Hx(i,j) = factorial_term*integral_term;
@@ -86,21 +92,21 @@ class MinSnapTraj {
                         
                     }
                 }
-                H_ind = ti*(order+1);
-                H.block<order+1, order+1>(H_ind, H_ind) = Hx;
-                cout << "Hx: " << endl
-                     << Hx << endl << endl;
+                H_ind = ti*(n+1);
+                H_eig.block<n+1, n+1>(H_ind, H_ind) = Hx;
+                //cout << "Hx: " << endl
+                //    << Hx << endl << endl;
             }
             
             // Load y part
-            Matrix<float, order+1, order+1> Hy;
-            for(int ti = 0; ti <= numSteps; ti++){      // iterate over time points
+            Eigen::Matrix<double, n+1, n+1> Hy;
+            for(int ti = 0; ti <= m-1; ti++){      // iterate over time intervals
                 // temp matrix to store current time point block diagram for x coeffs
-                Hy = Matrix<float, order+1, order+1>::Zero();
-                for(int i = k_r; i <= order; i++){      // iterate over orders
-                    for(int j = k_r; j <= order; j++){
-                        factorial_term = (float)fact(i)*fact(j)/(fact(i-k_r)*fact(j-k_r));
-                        temp = (float)(i+j-2*k_r+1);
+                Hy = Eigen::Matrix<double, n+1, n+1>::Zero();
+                for(int i = k_r; i <= n; i++){      // iterate over orders
+                    for(int j = k_r; j <= n; j++){
+                        factorial_term = fact(i)*fact(j)/(fact(i-k_r)*fact(j-k_r));
+                        temp = (double)(i+j-2*k_r+1);
                         integral_term = (1/temp)*(pow(time[ti+1],temp) - pow(time[ti],temp));
                         if (i == j){
                             Hy(i,j) = factorial_term*integral_term;
@@ -110,21 +116,21 @@ class MinSnapTraj {
                         
                     }
                 }
-                H_ind = ti*(order+1) + (numSteps+1)*(order+1);
-                H.block<order+1, order+1>(H_ind, H_ind) = Hy;
-                cout << "Hy: " << endl
-                     << Hy << endl << endl;
+                H_ind = ti*(n+1) + m*(n+1);
+                H_eig.block<n+1, n+1>(H_ind, H_ind) = Hy;
+                //cout << "Hy: " << endl
+                //    << Hy << endl << endl;
             }
             
             // Load z part
-            Matrix<float, order+1, order+1> Hz;
-            for(int ti = 0; ti <= numSteps; ti++){      // iterate over time points
+            Eigen::Matrix<double, n+1, n+1> Hz;
+            for(int ti = 0; ti <= m-1; ti++){      // iterate over time intervals
                 // temp matrix to store current time point block diagram for x coeffs
-                Hz = Matrix<float, order+1, order+1>::Zero();
-                for(int i = k_r; i <= order; i++){      // iterate over orders
-                    for(int j = k_r; j <= order; j++){
-                        factorial_term = (float)fact(i)*fact(j)/(fact(i-k_r)*fact(j-k_r));
-                        temp = (float)(i+j-2*k_r+1);
+                Hz = Eigen::Matrix<double, n+1, n+1>::Zero();
+                for(int i = k_r; i <= n; i++){      // iterate over orders
+                    for(int j = k_r; j <= n; j++){
+                        factorial_term = fact(i)*fact(j)/(fact(i-k_r)*fact(j-k_r));
+                        temp = (double)(i+j-2*k_r+1);
                         integral_term = (1/temp)*(pow(time[ti+1],temp) - pow(time[ti],temp));
                         if (i == j){
                             Hz(i,j) = factorial_term*integral_term;
@@ -134,21 +140,21 @@ class MinSnapTraj {
                         
                     }
                 }
-                H_ind = ti*(order+1) + 2*(numSteps+1)*(order+1);
-                H.block<order+1, order+1>(H_ind, H_ind) = Hz;
-                cout << "Hz: " << endl
-                     << Hz << endl << endl;
+                H_ind = ti*(n+1) + 2*m*(n+1);
+                H_eig.block<n+1, n+1>(H_ind, H_ind) = Hz;
+                //cout << "Hz: " << endl
+                //    << Hz << endl << endl;
             }
             
             // Load yaw part
-            Matrix<float, order+1, order+1> Hyaw;
-            for(int ti = 0; ti <= numSteps; ti++){      // iterate over time points
+            Eigen::Matrix<double, n+1, n+1> Hyaw;
+            for(int ti = 0; ti <= m-1; ti++){      // iterate over time intervals
                 // temp matrix to store current time point block diagram for x coeffs
-                Hyaw = Matrix<float, order+1, order+1>::Zero();
-                for(int i = k_yaw; i <= order; i++){      // iterate over orders
-                    for(int j = k_yaw; j <= order; j++){
-                        factorial_term = (float)fact(i)*fact(j)/(fact(i-k_yaw)*fact(j-k_yaw));
-                        temp = (float)(i+j-2*k_yaw+1);
+                Hyaw = Eigen::Matrix<double, n+1, n+1>::Zero();
+                for(int i = k_yaw; i <= n; i++){      // iterate over orders
+                    for(int j = k_yaw; j <= n; j++){
+                        factorial_term = fact(i)*fact(j)/(fact(i-k_yaw)*fact(j-k_yaw));
+                        temp = (double)(i+j-2*k_yaw+1);
                         integral_term = (1/temp)*(pow(time[ti+1],temp) - pow(time[ti],temp));
                         if (i == j){
                             Hyaw(i,j) = factorial_term*integral_term;
@@ -158,77 +164,146 @@ class MinSnapTraj {
                         
                     }
                 }
-                H_ind = ti*(order+1) + 3*(numSteps+1)*(order+1);
-                H.block<order+1, order+1>(H_ind, H_ind) = Hyaw;
-                cout << "Hyaw: " << endl
-                     << Hyaw << endl << endl;
+                H_ind = ti*(n+1) + 3*m*(n+1);
+                H_eig.block<n+1, n+1>(H_ind, H_ind) = Hyaw;
+                //cout << "Hyaw: " << endl
+                //    << Hyaw << endl << endl;
+            }
+                 
+            // Constraints
+            numCons = 34;
+            double* A = new double[numCons*numVars] ();
+            double* lbA = new double[numCons] ();
+            double* ubA = new double[numCons] ();
+            
+            int con = 0; // current constraint index
+            int A_ind, A_ind_seg1, A_ind_seg2;   // 1-D array indices of constraint matrix A
+            for(int ti = 0; ti <= m; ti++){      // iterate over time points
+                if(ti == 0){ // initial time
+                    // Fix initial positions/yaw and velocities
+                    for(int flat_ind = 0; flat_ind <= numFlatOut-1; flat_ind++){ // iterate over x,y,z,yaw
+                        for(int p = 0; p <= maxBoundOrder; p++){ // iterate over derivatives (p=0 means positions, p=1 means velocities)
+                            // create the constraint
+                            for(int i = p; i <= n; i++){  // iterate over degrees of polynomial segment
+                                A_ind = i + flat_ind*(n+1)*m + con*numVars;
+                                A[A_ind] = pow(time[ti],i-p)*fact(i)/fact(i-p);
+                            }
+                            lbA[con] = bounds[p](0,flat_ind); // initial conditions for p-th derivative
+                            ubA[con] = lbA[con];
+                            con += 1;
+                        }
+                    }
+                } else if(ti == m){ // final time
+                    // Fix final positions/yaw and velocities
+                    for(int flat_ind = 0; flat_ind <= numFlatOut-1; flat_ind++){ // iterate over x,y,z,yaw
+                        for(int p = 0; p <= maxBoundOrder; p++){ // iterate over derivatives (p=0 means positions, p=1 means velocities)
+                            // create the constraint
+                            for(int i = p; i <= n; i++){  // iterate over degrees of polynomial segment
+                                A_ind = (ti-1)*(n+1) + i + flat_ind*(n+1)*m + con*numVars;
+                                A[A_ind] = pow(time[ti],i-p)*fact(i)/fact(i-p);
+                            }
+                            lbA[con] = bounds[p](1,flat_ind); // final conditions for p-th derivative
+                            ubA[con] = lbA[con];
+                            con += 1;
+                        }
+                    }
+                } else { // other times
+                    // Enforce continuity of the first k_r derivates of position
+                    //  and the first k_yaw derivates of yaw
+                    for(int flat_ind = 0; flat_ind <= numFlatOut-1; flat_ind++){ // iterate over x,y,z,yaw
+                        for(int p = 0; p <= k[flat_ind]; p++){ // p = 0 means continuity of 0-th derivative
+                            // create the constraint
+                            for(int i = p; i <= n; i++){  // iterate over degrees of polynomial segment
+                                A_ind_seg1 = (ti-1)*(n+1) + i + flat_ind*(n+1)*m + con*numVars;
+                                A_ind_seg2 =     ti*(n+1) + i + flat_ind*(n+1)*m + con*numVars;
+                                A[A_ind_seg1] = pow(time[ti],i-p)*fact(i)/fact(i-p);
+                                A[A_ind_seg2] = -A[A_ind_seg1];
+                            }
+                            lbA[con] = 0.0f;
+                            ubA[con] = 0.0f;
+                            con += 1;
+                        }
+                    }
+                }
             }
             
-            cout << "H: " << endl
-                 << H << endl;
-                 
-            // TODO: convert eigen H matrix to 1-D real_t array
-            // TODO: create A, ubA, lbA with new desicion var format
-            // Solve the QP
-            /*
-            QProblem testQP(numVars, numCons);
-            testQP.setHessianType(HST_SEMIDEF);
+            // QP problem setup
+            double* H = matrixToArray(H_eig);   // convert H to array
+            double* g = new double[numVars] (); // set g to zeros
+            double* nullP = NULL;               // null pointer for lb and ub
+            int nWSR = 100;                     //  maximum number of working set recalculations to be performed during the initial homotopy
             
-            //my_printmatrix("H", H, numVars, numVars);
-            
+            QProblem testQP(numVars, numCons, HST_SEMIDEF);     // specify QP params (H is semidefinite)
             //testQP.setPrintLevel(PL_HIGH);
-            int nWSR = 10; //  maximum number of working set recalculations to be performed during the initial homotopy
-            real_t* nullP = NULL;
-            returnValue status = testQP.init(H, g, A, nullP, nullP, lbA, ubA, nWSR, 0, 0); // lb, ub set to null pointers
             
+            // Solve the QP
+            returnValue status = testQP.init(H, g, A, nullP, nullP, lbA, ubA, nWSR); // lb, ub set to null pointers
+            
+            // Print matrices
             printStatus(status);
-            */
             
-//             float cOpt[numVars];
-//             testQP.getPrimalSolution(cOpt);
-//             for(int i = 0; i <= numVars - 1; i++){
-//                 cout << cOpt[i] << endl;
-//             }           
-
+            cout << "number of constraints: " << con << endl << endl;
+            cout << "number of decision vars: " << numVars << endl << endl;
+            
+            cout << "H: " << endl;
+            printMatrix(H,numVars,numVars);
+            
+            cout << endl << "A: " << endl;
+            printMatrix(A,numCons,numVars);
+            
+            cout << endl << "lbA: " << endl;
+            printMatrix(lbA,1, numCons);
+            
+            cout << endl << "ubA: " << endl;
+            printMatrix(ubA,1, numCons);
+            
+            double* cOpt = new double[numVars];
+            testQP.getPrimalSolution(cOpt);
+            cout << endl << "c: " << endl;
+            printMatrix(cOpt, 1, numVars);
+            
+            // Manually clear memory
+            delete[] H;
+            delete[] A;
+            delete[] lbA;
+            delete[] ubA;
+            delete[] g;
+            delete[] cOpt;
+            
+            return status;
         }
         
-        void my_printmatrix(char *name, float *A, int m, int n) {
+        void printMatrix(double *A, int rows, int cols) {
             int i, j;
-
-            printf("%s = [...\n", name);
-            for (i = 0; i < m; i++) {
-                for (j = 0; j < n; j++)
-                    printf("  % 9.4f", A[i*n+j]);
+            for (i = 0; i < rows; i++) {
+                for (j = 0; j < cols; j++)
+                    printf("  % 9.2f", A[i*cols+j]);
                 printf(",\n");
             }
-            printf("];\n");
         }
         
     private:
-        static bool initialized;
-        flatOutputCoeffs coeffs;
-        vector<float> c;
         int numVars; // number of desicion variables
         int numCons;  // number of constraints
-        //int numSteps;  // number of time steps
-        float finalTime;  // number of time steps
+        int m;            // number of time intervals
+        double finalTime;  // number of time steps
         
         // Factorial function
-        int fact(int i){
+        double fact(int i){
             assert(i >= 0);
             if (i == 0 || i == 1){
-                return 1;
+                return 1.0f;
             } else{
-                return i*fact(i-1);
+                return (double)i*fact(i-1);
             }
         }
         
         template<typename T>
-        vector<float> linspace(T start_in, T end_in, int num){
+        vector<double> linspace(T start_in, T end_in, int num){
             // https://stackoverflow.com/questions/27028226/python-linspace-in-c
-            vector<float> linspaced;
-            float start = static_cast<float>(start_in);
-            float end = static_cast<float>(end_in);
+            vector<double> linspaced;
+            double start = static_cast<double>(start_in);
+            double end = static_cast<double>(end_in);
 
             if (num == 0) return linspaced;
             if (num == 1){
@@ -236,7 +311,7 @@ class MinSnapTraj {
                 return linspaced;
             }
 
-            float delta = (end - start) / (float)(num - 1);
+            double delta = (end - start) / (double)(num - 1);
 
             for(int i = 0; i < num-1; ++i){
                 linspaced.push_back(start + delta * i);
@@ -254,7 +329,26 @@ class MinSnapTraj {
             }
         }
         
-        int printStatus(returnValue status){
+        double* matrixToArray(const Eigen::MatrixXd& matrix) {
+            // Get the number of rows and columns in the matrix
+            int rows = matrix.rows();
+            int cols = matrix.cols();
+
+            // Allocate memory for the array
+            double* array = new double[rows * cols];
+
+            // Copy the matrix data into the array
+            int index = 0;
+            for (int i = 0; i < rows; ++i) {
+                for (int j = 0; j < cols; ++j) {
+                    array[index++] = matrix(i, j);
+                }
+            }
+            return array;
+        }
+        
+        int printStatus(qpOASES::returnValue status){
+            USING_NAMESPACE_QPOASES
             string enum_status;
             switch(status) {
                 case SUCCESSFUL_RETURN:
@@ -275,10 +369,10 @@ class MinSnapTraj {
                     enum_status = "RET_MAX_NWSR_REACHED"; break;
                 case RET_INVALID_ARGUMENTS:
                     enum_status = "RET_INVALID_ARGUMENTS"; break;
-                case RET_INACCURATE_SOLUTION:
-                    enum_status = "RET_INACCURATE_SOLUTION"; break;
-                case RET_NO_SOLUTION:
-                    enum_status = "RET_NO_SOLUTION"; break;
+                //case RET_INACCURATE_SOLUTION:
+                //    enum_status = "RET_INACCURATE_SOLUTION"; break;
+                //case RET_NO_SOLUTION:
+                //    enum_status = "RET_NO_SOLUTION"; break;
                 default:
                     cout << "Unknown status value: " << status << endl;
                     return 1;

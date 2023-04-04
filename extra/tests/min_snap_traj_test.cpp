@@ -9,11 +9,13 @@ using namespace std;
 
 int main(int argc, char **argv)
 {
+    int numIntervals = 2;
+    double duration = 5.0; // seconds
+    MinSnapTraj obj(numIntervals, duration); // create object
 
-    float duration = 5.0f; // seconds
-    MinSnapTraj obj(duration); // create object
-    obj.getCoeffs();
-
+    int stats = obj.getCoeffs();
+    cout << "my status: " << stats << endl;
+    
     return 0;
 }
 

@@ -64,15 +64,43 @@ add_library(acado STATIC
     ${codegen_dir}/qpoases/SRC/Utils.cpp
     ${codegen_dir}/qpoases/SRC/EXTRAS/SolutionAnalysis.cpp
 )
-
 target_include_directories(acado PUBLIC
     ${codegen_dir}/autogen_code
     ${codegen_dir}/qpoases
     ${codegen_dir}/qpoases/INCLUDE
     ${codegen_dir}/qpoases/SRC
 )
-
 target_link_libraries(acado ${catkin_LIBRARIES})
+
+set(full_qpoases_dir "extra/qpOASES")
+add_library(full_qpoases STATIC
+    ${full_qpoases_dir}/src/BLASReplacement.cpp
+    ${full_qpoases_dir}/src/Bounds.cpp
+    ${full_qpoases_dir}/src/Constraints.cpp
+    ${full_qpoases_dir}/src/Flipper.cpp
+    ${full_qpoases_dir}/src/Indexlist.cpp
+    ${full_qpoases_dir}/src/LAPACKReplacement.cpp
+    ${full_qpoases_dir}/src/Makefile
+    ${full_qpoases_dir}/src/Matrices.cpp
+    ${full_qpoases_dir}/src/MessageHandling.cpp
+    ${full_qpoases_dir}/src/Options.cpp
+    ${full_qpoases_dir}/src/OQPinterface.cpp
+    ${full_qpoases_dir}/src/QProblemB.cpp
+    ${full_qpoases_dir}/src/QProblem.cpp
+    ${full_qpoases_dir}/src/SolutionAnalysis.cpp
+    ${full_qpoases_dir}/src/SparseSolver.cpp
+    ${full_qpoases_dir}/src/SQProblem.cpp
+    ${full_qpoases_dir}/src/SQProblemSchur.cpp
+    ${full_qpoases_dir}/src/SubjectTo.cpp
+    ${full_qpoases_dir}/src/Utils.cpp
+)
+target_include_directories(full_qpoases PUBLIC
+    ${full_qpoases_dir}
+    ${full_qpoases_dir}/include
+    ${full_qpoases_dir}/include/qpOASES
+    ${full_qpoases_dir}/include/qpOASES/extras
+    ${full_qpoases_dir}/src
+)
 
 ## Include directories and add executable
 add_executable(mavros_cmd_node src/mavros_cmd_node.cpp)
@@ -90,7 +118,7 @@ target_link_libraries(mpc_node acado Eigen3::Eigen ${catkin_LIBRARIES})
 set(DO_TESTS TRUE)
 if(DO_TESTS)
     add_executable(min_snap_test extra/tests/min_snap_traj_test.cpp)
-    target_link_libraries(min_snap_test acado Eigen3::Eigen)
+    target_link_libraries(min_snap_test full_qpoases Eigen3::Eigen)
 endif()
 
 include_directories(include ${catkin_INCLUDE_DIRS})
