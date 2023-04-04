@@ -46,8 +46,8 @@ catkin_package(
     CATKIN_DEPENDS roscpp rospy std_msgs geometry_msgs message_runtime
 )
 
+## acado source files and embedded version of qpOASES
 set(codegen_dir "acado/examples/quad_mpc")
-
 add_library(acado STATIC
     ${codegen_dir}/autogen_code/acado_qpoases_interface.cpp
     ${codegen_dir}/autogen_code/acado_integrator.c
@@ -72,6 +72,7 @@ target_include_directories(acado PUBLIC
 )
 target_link_libraries(acado ${catkin_LIBRARIES})
 
+## Full and updated qpOASES solver for min-snap traj generation
 set(full_qpoases_dir "extra/qpOASES")
 add_library(full_qpoases STATIC
     ${full_qpoases_dir}/src/BLASReplacement.cpp

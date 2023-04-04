@@ -11,8 +11,9 @@
 #include <string>
 #include <stdio.h>
 #include <random>
+#include <algorithm>
+#include <numeric>
 
-//#include <QProblem.hpp>
 #include <qpOASES.hpp>
 
 using namespace std;
@@ -21,157 +22,82 @@ USING_NAMESPACE_QPOASES
 class MinSnapTraj {
     public:
         
-        
-        // Variables/Datatypes
-        const static int n = 4; // highest order of the piecewise polynomials
-        const static int numFlatOut = 4; // x, y, z, yaw
-        typedef vector< Eigen::Matrix<double, 2, 4>, Eigen::aligned_allocator<Eigen::Matrix<double, 2, 4>> > vectOfMatrix24d;
+        // Datatypes
+        struct TrajSolution {
+            vector<vector<double>> coeffs;
+            int status;
+        };
         typedef Eigen::Matrix<double, 2, 4> Matrix24d;
+        typedef vector< Eigen::Matrix<double, 2, 4>, Eigen::aligned_allocator<Eigen::Matrix<double, 2, 4>> > vectOfMatrix24d;
 
         // Constructor
-        MinSnapTraj(int numIntervals, double duration){
+        MinSnapTraj(int order, int numIntervals, double duration, const vectOfMatrix24d& bound_conds){
             // Initialize
             finalTime = duration;
             m = numIntervals;
-            numVars = m*numFlatOut*(n+1);
+            n = order;
+            numVars = m*numFlatOut*(n+1); // numbr of desicion variables
+            bounds = bound_conds;
         }
         
-        int getCoeffs() {
+        TrajSolution solveTrajectory() {
             
-            // Position and velocity boundary conditions (BC)
-            Matrix24d p0_bounds; // p=0 means 0th derivative
-            p0_bounds << 1.0f, 2.0f, 4.0f, 0.0f, // initial x, y, z, yaw
-                         0.0f, 0.0f, 1.0f, 0.0f; // final values
-            Matrix24d p1_bounds; // p=1 means 1st derivative
-            p1_bounds << 0.0f, 0.0f, 0.0f, 0.0f, // initial velocities
-                         0.0f, 0.0f, 0.0f, 0.0f; // final velocities
-            vectOfMatrix24d bounds;
-            bounds.push_back(p0_bounds);
-            bounds.push_back(p1_bounds);
+// -------- Position and velocity boundary conditions (BC) -------- //
             int maxBoundOrder = bounds.size() - 1; // 0 if only position BC, 2 if up to acceleration BC
-            cout << "maxBoundOrder: " << maxBoundOrder << endl << endl;
             
             // Time points (one for each keyframe)
-            vector<double> time = linspace(0.0, finalTime, m+1); // number of time points = numIntervals + 1
-            cout << "times: " << endl;
-            for(size_t i = 0; i < time.size(); i++) cout << time[i] << " ";
-            cout << endl << endl;
+            time = linspace(0.0, finalTime, m+1); // number of time points = numIntervals + 1
             
-            // ---- Load values into H ---- //
-            int k_r = 4; // min snap for pva trajectory
+// -------- Hessian: Build H matrix -------- //
+            // Specify the trajectory is min snap (minimize 4-th derivative of r)
+            int k_r = 4;
             int k_yaw = 2;
-            vector<int> k = {k_r, k_r, k_r, k_yaw}; // derivative for objective function for x,y,z,yaw
-            
-            cout << "k: " << endl;
-            for(size_t i = 0; i < k.size(); i++) cout << k[i] << " ";
-            cout << endl << endl;
-            
             assert(k_r <= n && k_yaw <= 2);
-            Eigen::MatrixXd H_eig(numVars, numVars);
-            H_eig = Eigen::MatrixXd::Zero(numVars, numVars);
-
-            // Load x part
+            vector<int> k = {k_r, k_r, k_r, k_yaw}; // store for later use
+            
+            // Init some variables
             double factorial_term;
-            double temp;
+            double index_term;
             double integral_term;
             int H_ind;
-            Eigen::Matrix<double, n+1, n+1> Hx;
-            for(int ti = 0; ti <= m-1; ti++){      // iterate over time intervals
-                // temp matrix to store current time point block diagram for x coeffs
-                Hx = Eigen::Matrix<double, n+1, n+1>::Zero();
-                for(int i = k_r; i <= n; i++){      // iterate over orders
-                    for(int j = k_r; j <= n; j++){
-                        factorial_term = fact(i)*fact(j)/(fact(i-k_r)*fact(j-k_r));
-                        temp = (double)(i+j-2*k_r+1);
-                        integral_term = (1/temp)*(pow(time[ti+1],temp) - pow(time[ti],temp));
-                        if (i == j){
-                            Hx(i,j) = factorial_term*integral_term;
-                        } else {
-                            Hx(i,j) = factorial_term*0.5*integral_term;
+            
+            // Init some matrices
+            Eigen::MatrixXd H_eig(numVars, numVars);
+            H_eig = Eigen::MatrixXd::Zero(numVars, numVars);
+            Eigen::MatrixXd H_block(n+1, n+1);
+            Eigen::MatrixXd zero_block = Eigen::MatrixXd::Zero(n+1, n+1);
+            
+            // Load data into H_eig
+            for(int flat_ind = 0; flat_ind <= numFlatOut-1; flat_ind++){    // iterate over x,y,z,yaw
+                for(int ti = 0; ti <= m-1; ti++){                           // iterate over time intervals
+                    // Store current block matrix for given flat output (x, y ...)
+                    H_block = zero_block;
+                    for(int i = k[flat_ind]; i <= n; i++){                  // iterate over degrees
+                        for(int j = k[flat_ind]; j <= n; j++){
+                            factorial_term = fact(i)*fact(j)/(fact(i-k[flat_ind])*fact(j-k[flat_ind]));
+                            index_term = (double)(i+j-2*k[flat_ind]+1);
+                            integral_term = (1/index_term)*(pow(time[ti+1],index_term) - pow(time[ti],index_term));
+                            if (i == j){
+                                H_block(i,j) = factorial_term*integral_term;
+                            } else {
+                                H_block(i,j) = factorial_term*0.5*integral_term;
+                            }
+                            
                         }
-                        
                     }
+                    H_ind = ti*(n+1) + flat_ind*m*(n+1);
+                    H_eig.block(H_ind, H_ind, n+1, n+1) = H_block;
+                    //cout << "H_block: " << endl
+                    //    << H_block << endl << endl;
                 }
-                H_ind = ti*(n+1);
-                H_eig.block<n+1, n+1>(H_ind, H_ind) = Hx;
-                //cout << "Hx: " << endl
-                //    << Hx << endl << endl;
             }
             
-            // Load y part
-            Eigen::Matrix<double, n+1, n+1> Hy;
-            for(int ti = 0; ti <= m-1; ti++){      // iterate over time intervals
-                // temp matrix to store current time point block diagram for x coeffs
-                Hy = Eigen::Matrix<double, n+1, n+1>::Zero();
-                for(int i = k_r; i <= n; i++){      // iterate over orders
-                    for(int j = k_r; j <= n; j++){
-                        factorial_term = fact(i)*fact(j)/(fact(i-k_r)*fact(j-k_r));
-                        temp = (double)(i+j-2*k_r+1);
-                        integral_term = (1/temp)*(pow(time[ti+1],temp) - pow(time[ti],temp));
-                        if (i == j){
-                            Hy(i,j) = factorial_term*integral_term;
-                        } else {
-                            Hy(i,j) = factorial_term*0.5*integral_term;
-                        }
-                        
-                    }
-                }
-                H_ind = ti*(n+1) + m*(n+1);
-                H_eig.block<n+1, n+1>(H_ind, H_ind) = Hy;
-                //cout << "Hy: " << endl
-                //    << Hy << endl << endl;
-            }
-            
-            // Load z part
-            Eigen::Matrix<double, n+1, n+1> Hz;
-            for(int ti = 0; ti <= m-1; ti++){      // iterate over time intervals
-                // temp matrix to store current time point block diagram for x coeffs
-                Hz = Eigen::Matrix<double, n+1, n+1>::Zero();
-                for(int i = k_r; i <= n; i++){      // iterate over orders
-                    for(int j = k_r; j <= n; j++){
-                        factorial_term = fact(i)*fact(j)/(fact(i-k_r)*fact(j-k_r));
-                        temp = (double)(i+j-2*k_r+1);
-                        integral_term = (1/temp)*(pow(time[ti+1],temp) - pow(time[ti],temp));
-                        if (i == j){
-                            Hz(i,j) = factorial_term*integral_term;
-                        } else {
-                            Hz(i,j) = factorial_term*0.5*integral_term;
-                        }
-                        
-                    }
-                }
-                H_ind = ti*(n+1) + 2*m*(n+1);
-                H_eig.block<n+1, n+1>(H_ind, H_ind) = Hz;
-                //cout << "Hz: " << endl
-                //    << Hz << endl << endl;
-            }
-            
-            // Load yaw part
-            Eigen::Matrix<double, n+1, n+1> Hyaw;
-            for(int ti = 0; ti <= m-1; ti++){      // iterate over time intervals
-                // temp matrix to store current time point block diagram for x coeffs
-                Hyaw = Eigen::Matrix<double, n+1, n+1>::Zero();
-                for(int i = k_yaw; i <= n; i++){      // iterate over orders
-                    for(int j = k_yaw; j <= n; j++){
-                        factorial_term = fact(i)*fact(j)/(fact(i-k_yaw)*fact(j-k_yaw));
-                        temp = (double)(i+j-2*k_yaw+1);
-                        integral_term = (1/temp)*(pow(time[ti+1],temp) - pow(time[ti],temp));
-                        if (i == j){
-                            Hyaw(i,j) = factorial_term*integral_term;
-                        } else {
-                            Hyaw(i,j) = factorial_term*0.5*integral_term;
-                        }
-                        
-                    }
-                }
-                H_ind = ti*(n+1) + 3*m*(n+1);
-                H_eig.block<n+1, n+1>(H_ind, H_ind) = Hyaw;
-                //cout << "Hyaw: " << endl
-                //    << Hyaw << endl << endl;
-            }
+            // Convert H to array that can be used by qpOASES
+            double* H = matrixToArray(H_eig);
                  
-            // Constraints
-            numCons = 34;
+// -------- Constraints: Load A, lbA and ubA -------- //
+            // Constraints: pos/vel boundary consitions, enforced continuity b/w time intervals
+            numCons = numFlatOut*(maxBoundOrder+1)*2 + (numFlatOut-1)*(m-1)*(k_r+1) + (m-1)*(k_yaw+1);
             double* A = new double[numCons*numVars] ();
             double* lbA = new double[numCons] ();
             double* ubA = new double[numCons] ();
@@ -219,48 +145,66 @@ class MinSnapTraj {
                                 A[A_ind_seg1] = pow(time[ti],i-p)*fact(i)/fact(i-p);
                                 A[A_ind_seg2] = -A[A_ind_seg1];
                             }
-                            lbA[con] = 0.0f;
-                            ubA[con] = 0.0f;
+                            lbA[con] = 0.0;
+                            ubA[con] = 0.0;
                             con += 1;
                         }
                     }
                 }
             }
-            
+              
+// -------- Solve the QP -------- //
             // QP problem setup
-            double* H = matrixToArray(H_eig);   // convert H to array
             double* g = new double[numVars] (); // set g to zeros
             double* nullP = NULL;               // null pointer for lb and ub
-            int nWSR = 100;                     //  maximum number of working set recalculations to be performed during the initial homotopy
+            int nWSR = 300;                     //  maximum number of working set recalculations to be performed during the initial homotopy
             
             QProblem testQP(numVars, numCons, HST_SEMIDEF);     // specify QP params (H is semidefinite)
-            //testQP.setPrintLevel(PL_HIGH);
+            testQP.setPrintLevel(PL_LOW);                       // Just print errors
             
-            // Solve the QP
+            // Solve the QP and get the solution
             returnValue status = testQP.init(H, g, A, nullP, nullP, lbA, ubA, nWSR); // lb, ub set to null pointers
-            
-            // Print matrices
-            printStatus(status);
-            
-            cout << "number of constraints: " << con << endl << endl;
-            cout << "number of decision vars: " << numVars << endl << endl;
-            
-            cout << "H: " << endl;
-            printMatrix(H,numVars,numVars);
-            
-            cout << endl << "A: " << endl;
-            printMatrix(A,numCons,numVars);
-            
-            cout << endl << "lbA: " << endl;
-            printMatrix(lbA,1, numCons);
-            
-            cout << endl << "ubA: " << endl;
-            printMatrix(ubA,1, numCons);
-            
             double* cOpt = new double[numVars];
             testQP.getPrimalSolution(cOpt);
-            cout << endl << "c: " << endl;
-            printMatrix(cOpt, 1, numVars);
+            
+            // Print stuff
+            assert(con == numCons);
+            cout << endl << "Number of constraints: " << numCons << endl;
+            cout << "Number of decision variables: " << numVars << endl;
+
+            cout << "Time points (sec): ";
+            for(size_t i = 0; i < time.size(); i++) cout << time[i] << " ";
+            cout << endl << endl;
+            
+            //cout << "H: " << endl;
+            //printMatrix(H,numVars,numVars);
+            
+            //cout << endl << "A: " << endl;
+            //printMatrix(A,numCons,numVars);
+            
+            //cout << endl << "lbA: " << endl;
+            //printMatrix(lbA,1, numCons);
+            
+            //cout << endl << "ubA: " << endl;
+            //printMatrix(ubA,1, numCons);
+            
+            //cout << endl << "optimal solution: " << endl;
+            //printMatrix(cOpt, 1, numVars);
+            
+            // Load return value
+            TrajSolution sol;
+            sol.status = status;
+            // want sol.coeffs indexed by time, instead of by flat_ind, so change ordering:
+            vector<double> ti_vect;
+            for(int ti = 0; ti <= m; ti++){
+                ti_vect.clear();
+                for(int flat_ind = 0; flat_ind <= numFlatOut-1; flat_ind++){
+                    for(int p = 0; p <= n; p++){
+                        ti_vect.push_back(cOpt[flat_ind*(n+1)*m + ti*(n+1) + p]);
+                    }
+                }
+                sol.coeffs.push_back(ti_vect);
+            }
             
             // Manually clear memory
             delete[] H;
@@ -270,34 +214,48 @@ class MinSnapTraj {
             delete[] g;
             delete[] cOpt;
             
-            return status;
+            return sol;
         }
         
-        void printMatrix(double *A, int rows, int cols) {
-            int i, j;
-            for (i = 0; i < rows; i++) {
-                for (j = 0; j < cols; j++)
-                    printf("  % 9.2f", A[i*cols+j]);
-                printf(",\n");
+        // Given coeffs, and a vector of times, output the evaluated polynomial
+        vector<vector<double>> polyEval(const vector<vector<double>>& coeffs, const vector<double>& tspan){
+            assert(tspan[0] >= time[0] && *tspan.end() <= time[m]);
+            vector<vector<double>> eval;
+            
+            // Collect all time power terms
+            vector<vector<double>> t_pow_mat;
+            vector<double> t_pow_vect;
+            for(size_t i = 0; i <= tspan.size()-1; i++){
+                t_pow_vect.clear();
+                for(int p = 0; p <= n; p++){ t_pow_vect.push_back(pow(tspan[i],p));}
+                t_pow_mat.push_back(t_pow_vect);
             }
-        }
-        
-    private:
-        int numVars; // number of desicion variables
-        int numCons;  // number of constraints
-        int m;            // number of time intervals
-        double finalTime;  // number of time steps
-        
-        // Factorial function
-        double fact(int i){
-            assert(i >= 0);
-            if (i == 0 || i == 1){
-                return 1.0f;
-            } else{
-                return (double)i*fact(i-1);
+            
+            int j = 1;
+            double sum_x, sum_y, sum_z, sum_yaw;
+            vector<double> flatout;
+            for(size_t i = 0; i <= tspan.size()-1; i++){
+                while(true){
+                    if (tspan[i] > time[j]){
+                        j += 1;
+                    } else {
+                        // eval j-th segment at ti
+                        sum_x   = std::inner_product(begin(t_pow_mat[i]), end(t_pow_mat[i]), begin(coeffs[j]), 0);
+                        sum_y   = std::inner_product(begin(t_pow_mat[i]), end(t_pow_mat[i]), begin(coeffs[j]) + n+1, 0);
+                        sum_z   = std::inner_product(begin(t_pow_mat[i]), end(t_pow_mat[i]), begin(coeffs[j]) + 2*(n+1), 0);
+                        sum_yaw = std::inner_product(begin(t_pow_mat[i]), end(t_pow_mat[i]), begin(coeffs[j]) + 3*(n+1), 0);
+                        flatout.clear();
+                        flatout.push_back(sum_x); flatout.push_back(sum_y);
+                        flatout.push_back(sum_z); flatout.push_back(sum_yaw);
+                        eval.push_back(flatout);
+                        break;
+                    }
+                }
             }
+            return eval; // eval[i] gives the flatoutputs at time tspan[i]
         }
         
+        // Mimic numpy linspace function
         template<typename T>
         vector<double> linspace(T start_in, T end_in, int num){
             // https://stackoverflow.com/questions/27028226/python-linspace-in-c
@@ -321,14 +279,37 @@ class MinSnapTraj {
             return linspaced;
         }
         
-        template<typename T>
-        void printArray(const T (&arr)[]){
-            size_t len = sizeof(arr)/sizeof(arr[0]);
-            for(size_t i = 0; i <= len - 1; i++){
-                cout << arr[i] << endl;
+    private:
+        int numVars;                // number of desicion variables
+        int numCons;                // number of constraints
+        int n;                      // order of the polynomials
+        int m;                      // number of time intervals
+        double finalTime;           // number of time steps
+        vector<double> time;        // time points
+        const int numFlatOut = 4;   // x, y, z, yaw
+        vectOfMatrix24d bounds;     // boundary conditions
+        
+        // Factorial function
+        double fact(int i){
+            assert(i >= 0);
+            if (i == 0 || i == 1){
+                return 1.0f;
+            } else{
+                return (double)i*fact(i-1);
             }
         }
         
+        // Print array as matrix
+        void printMatrix(double *A, int rows, int cols) {
+            int i, j;
+            for (i = 0; i < rows; i++) {
+                for (j = 0; j < cols; j++)
+                    printf("  % 9.2f", A[i*cols+j]);
+                printf(",\n");
+            }
+        }
+        
+        // Convert Eigen::MatrixXd to array
         double* matrixToArray(const Eigen::MatrixXd& matrix) {
             // Get the number of rows and columns in the matrix
             int rows = matrix.rows();
@@ -345,40 +326,6 @@ class MinSnapTraj {
                 }
             }
             return array;
-        }
-        
-        int printStatus(qpOASES::returnValue status){
-            USING_NAMESPACE_QPOASES
-            string enum_status;
-            switch(status) {
-                case SUCCESSFUL_RETURN:
-                    enum_status = "SUCCESSFUL_RETURN"; break;
-                case RET_INIT_FAILED:
-                    enum_status = "RET_INIT_FAILED"; break;
-                case RET_INIT_FAILED_CHOLESKY:
-                    enum_status = "RET_INIT_FAILED_CHOLESKY"; break;
-                case RET_INIT_FAILED_TQ:
-                    enum_status = "RET_INIT_FAILED_TQ"; break;
-                case RET_INIT_FAILED_HOTSTART:
-                    enum_status = "RET_INIT_FAILED_HOTSTART"; break;
-                case RET_INIT_FAILED_INFEASIBILITY:
-                    enum_status = "RET_INIT_FAILED_INFEASIBILITY"; break;
-                case RET_INIT_FAILED_UNBOUNDEDNESS:
-                    enum_status = "RET_INIT_FAILED_UNBOUNDEDNESS"; break;
-                case RET_MAX_NWSR_REACHED:
-                    enum_status = "RET_MAX_NWSR_REACHED"; break;
-                case RET_INVALID_ARGUMENTS:
-                    enum_status = "RET_INVALID_ARGUMENTS"; break;
-                //case RET_INACCURATE_SOLUTION:
-                //    enum_status = "RET_INACCURATE_SOLUTION"; break;
-                //case RET_NO_SOLUTION:
-                //    enum_status = "RET_NO_SOLUTION"; break;
-                default:
-                    cout << "Unknown status value: " << status << endl;
-                    return 1;
-            }
-            cout << "Status value: " << status << ". Meaning: " << enum_status << endl;
-            return 0;    
         }
 };
 
