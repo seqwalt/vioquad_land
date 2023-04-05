@@ -27,35 +27,32 @@ class MinSnapTraj {
             vector<vector<double>> coeffs;
             int status;
         };
+        struct keyframe{
+            int t_ind;    // time index. t_ind \in {1, ..., m-1}
+            int flat_ind; // flat_ind = 0 for x, 1 for y, 2 for z, 3 for yaw
+            double value; // The desired value of the state corresponding to flat_ind
+        };
         typedef Eigen::Matrix<double, 2, 4> Matrix24d;
         typedef vector< Eigen::Matrix<double, 2, 4>, Eigen::aligned_allocator<Eigen::Matrix<double, 2, 4>> > vectOfMatrix24d;
 
         // Constructor
-        MinSnapTraj(int order, int numIntervals, double duration, vectOfMatrix24d& bound_conds, keyframes){
+        MinSnapTraj(int order, vector<double> time_in, vectOfMatrix24d& bounds_in, vector<keyframe> keys_in){
             // Initialize
             assert(order >= 4);
-            assert(numIntervals >= 1);
-            assert(duration > 0.0);
-            
-            finalTime = duration;
-            m = numIntervals;
-            n = order;
-            numVars = m*numFlatOut*(n+1); // numbr of desicion variables
-            bounds = bound_conds;
+            n = order;                    // polynomial order
+            time = time_in;               // time points
+            m = time.size() - 1;          // number of time segments
+            numVars = m*numFlatOut*(n+1); // number of desicion variables
+            bounds = bounds_in;           // boundary conditions
+            keys = keys_in;               // keyframes
         }
         
         TrajSolution solveTrajectory() {
             
-// -------- Position and velocity boundary conditions (BC) -------- //
-            int maxBoundOrder = bounds.size() - 1; // 0 if only position BC, 2 if up to acceleration BC, for example
-            
-            // Time points (one for each keyframe)
-            time = linspace(0.0, finalTime, m+1); // number of time points = numIntervals + 1
-            
 // -------- Hessian: Build H matrix -------- //
             
             // NOTE: The decision variable c used to solve the QP has the following form:
-            // c = [x_{0,0}, x_{1,0}, ..., x_{n,0}, x_{0,1}, x_{1,1}, ..., x_{n,1}, . . ., x_{n,m-1}, y_{0,0}, y{1,0}, . . .],
+            // c = [x_{0,0}, x_{1,0}, ..., x_{n,0}, x_{0,1}, x_{1,1}, ..., x_{n,1}, . . ., x_{n,m-1}, y_{0,0}, y_{1,0}, . . .],
             // where x_{i,j} is the x coefficient of order i, at time index j.
             // The array c is "ordered by state" meaning x comes first, then y, z, yaw.
             
@@ -106,11 +103,16 @@ class MinSnapTraj {
             double* H = matrixToArray(H_eig);
                  
 // -------- Constraints: Load A, lbA and ubA -------- //
+            
             // Constraint types: pos/vel boundary consitions, enforced continuity b/w time intervals
+            int maxBoundOrder = bounds.size() - 1; // 0 if only position boundary condition (BC), 2 if up to acceleration BC, for example
+            
             int numBoundCons = numFlatOut*(maxBoundOrder+1)*2;                  // number of boundary condition constraints
             int numContCons  = (numFlatOut-1)*(m-1)*(k_r+1) + (m-1)*(k_yaw+1);  // number of "enforced continuity b/w time interval" constraints
-            int numKeyCons = ; // number of keyframe/waypoint constraints (not including boundary conditions)
+            int numKeyCons   = keys.size();                                     // number of keyframe/waypoint constraints (not including boundary conditions)
+            int numFovCons   = ;                                                // number of field-of-view (FOV) constraints
             numCons = numBoundCons + numContCons + numKeyCons;
+            
             double* A = new double[numCons*numVars] ();
             double* lbA = new double[numCons] ();
             double* ubA = new double[numCons] ();
@@ -163,30 +165,32 @@ class MinSnapTraj {
                             con += 1;
                         }
                     }
-                    
-                    // TODO: Waypoint/Keyframe constraints (separate from boundary conditions)
-                    for(int flat_ind = 0; flat_ind <= numFlatOut-1; flat_ind++){ // iterate over x,y,z,yaw
-                        // create the constraint
-                        for(int i = p; i <= n; i++){  // iterate over degrees of polynomial segment
-                            A_ind = i + flat_ind*(n+1)*m + con*numVars;
-                            A[A_ind] = pow(time[ti],i-p)*fact(i)/fact(i-p);
-                        }
-                        lbA[con] = bounds[p](0,flat_ind); // initial conditions for p-th derivative
-                        ubA[con] = lbA[con];
-                        con += 1;
-                    }
-                    
-                    // TODO: FOV ax,ay,az constraints (may need to add slack variable)
-                    // TODO: height constraint
-                    // TODO: if needed, "position in cone" constraint
                 }
             }
+            
+            // Waypoint/Keyframe constraints (separate from boundary conditions)
+            for(int key_ind = 0; key_ind <= numKeyCons-1; key_ind++){ // iterate over x,y,z,yaw
+                // create the constraint
+                int flat_ind = keys[key_ind].flat_ind;
+                int ti = keys[key_ind].t_ind;
+                for(int i = 0; i <= n; i++){  // iterate over degrees of polynomial segment
+                    A_ind = i + flat_ind*(n+1)*m + con*numVars;
+                    A[A_ind] = pow(time[ti],i);
+                }
+                lbA[con] = keys[key_ind].value; // initial conditions for p-th derivative
+                ubA[con] = lbA[con];
+                con += 1;
+            }
+            
+            // TODO: FOV ax,ay,az constraints (may need to add slack variable)
+            // TODO: height constraint
+            // TODO: if needed, "position in cone" constraint
               
 // -------- Solve the QP -------- //
             // QP problem setup
             double* g = new double[numVars] (); // set g to zeros
             double* nullP = NULL;               // null pointer for lb and ub
-            int nWSR = 300;                     //  maximum number of working set recalculations to be performed during the initial homotopy
+            int nWSR = 1000;                     //  maximum number of working set recalculations to be performed during the initial homotopy
             
             QProblem testQP(numVars, numCons, HST_SEMIDEF);     // specify QP params (H is semidefinite)
             testQP.setPrintLevel(PL_LOW);                       // Just print errors
@@ -198,7 +202,7 @@ class MinSnapTraj {
             
             // Print stuff
             assert(con == numCons);
-            cout << "Number of constraints: " << numCons << endl;
+            cout << endl << "Number of constraints: " << numCons << endl;
             cout << "Number of decision variables: " << numVars << endl;
 
             cout << "Segment times (seconds): ";
@@ -262,7 +266,7 @@ class MinSnapTraj {
         Eigen::MatrixXd polyEval(const vector<vector<double>>& coeffs, const vector<double>& tspan){
             assert(tspan[0] >= time[0] && tspan.back() <= time[m]);
             
-            Eigen::MatrixXd eval(tspan.size(), 4);
+            Eigen::MatrixXd eval(tspan.size(), 5);
             
             // Collect all time power terms
             vector<vector<double>> t_pow_mat;
@@ -285,39 +289,16 @@ class MinSnapTraj {
                         sum_y   = std::inner_product(begin(t_pow_mat[i]), end(t_pow_mat[i]), begin(coeffs[j-1]) + n+1, 0.0);
                         sum_z   = std::inner_product(begin(t_pow_mat[i]), end(t_pow_mat[i]), begin(coeffs[j-1]) + 2*(n+1), 0.0);
                         sum_yaw = std::inner_product(begin(t_pow_mat[i]), end(t_pow_mat[i]), begin(coeffs[j-1]) + 3*(n+1), 0.0);
-                        eval(i, 0) = sum_x;
-                        eval(i, 1) = sum_y;
-                        eval(i, 2) = sum_z;
-                        eval(i, 3) = sum_yaw;
+                        eval(i, 0) = tspan[i];
+                        eval(i, 1) = sum_x;
+                        eval(i, 2) = sum_y;
+                        eval(i, 3) = sum_z;
+                        eval(i, 4) = sum_yaw;
                         break;
                     }
                 }
             }
-            return eval; // eval[i] gives the flatoutputs at time tspan[i]
-        }
-        
-        // Mimic numpy linspace function
-        template<typename T>
-        vector<double> linspace(T start_in, T end_in, int num){
-            // https://stackoverflow.com/questions/27028226/python-linspace-in-c
-            vector<double> linspaced;
-            double start = static_cast<double>(start_in);
-            double end = static_cast<double>(end_in);
-
-            if (num == 0) return linspaced;
-            if (num == 1){
-                linspaced.push_back(start);
-                return linspaced;
-            }
-
-            double delta = (end - start) / (double)(num - 1);
-
-            for(int i = 0; i < num-1; ++i){
-                linspaced.push_back(start + delta * i);
-            }
-            linspaced.push_back(end); // Ensure that start and end
-                                      // are exactly the same as the input
-            return linspaced;
+            return eval; // eval[i,:] gives the time and flatoutputs at time tspan[i]
         }
         
     private:
@@ -325,10 +306,10 @@ class MinSnapTraj {
         int numCons;                // number of constraints
         int n;                      // order of the polynomials
         int m;                      // number of time intervals
-        double finalTime;           // number of time steps
         vector<double> time;        // time points
         const int numFlatOut = 4;   // x, y, z, yaw
         vectOfMatrix24d bounds;     // boundary conditions
+        vector<keyframe> keys;      // keyframes
         
         // Factorial function
         double fact(int i){
