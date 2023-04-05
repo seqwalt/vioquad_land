@@ -31,8 +31,12 @@ class MinSnapTraj {
         typedef vector< Eigen::Matrix<double, 2, 4>, Eigen::aligned_allocator<Eigen::Matrix<double, 2, 4>> > vectOfMatrix24d;
 
         // Constructor
-        MinSnapTraj(int order, int numIntervals, double duration, const vectOfMatrix24d& bound_conds){
+        MinSnapTraj(int order, int numIntervals, double duration, vectOfMatrix24d& bound_conds, keyframes){
             // Initialize
+            assert(order >= 4);
+            assert(numIntervals >= 1);
+            assert(duration > 0.0);
+            
             finalTime = duration;
             m = numIntervals;
             n = order;
@@ -43,12 +47,18 @@ class MinSnapTraj {
         TrajSolution solveTrajectory() {
             
 // -------- Position and velocity boundary conditions (BC) -------- //
-            int maxBoundOrder = bounds.size() - 1; // 0 if only position BC, 2 if up to acceleration BC
+            int maxBoundOrder = bounds.size() - 1; // 0 if only position BC, 2 if up to acceleration BC, for example
             
             // Time points (one for each keyframe)
             time = linspace(0.0, finalTime, m+1); // number of time points = numIntervals + 1
             
 // -------- Hessian: Build H matrix -------- //
+            
+            // NOTE: The decision variable c used to solve the QP has the following form:
+            // c = [x_{0,0}, x_{1,0}, ..., x_{n,0}, x_{0,1}, x_{1,1}, ..., x_{n,1}, . . ., x_{n,m-1}, y_{0,0}, y{1,0}, . . .],
+            // where x_{i,j} is the x coefficient of order i, at time index j.
+            // The array c is "ordered by state" meaning x comes first, then y, z, yaw.
+            
             // Specify the trajectory is min snap (minimize 4-th derivative of r)
             int k_r = 4;
             int k_yaw = 2;
@@ -92,12 +102,15 @@ class MinSnapTraj {
                 }
             }
             
-            // Convert H to array that can be used by qpOASES
+            // Convert from Eigen matrix to array that can be used by qpOASES
             double* H = matrixToArray(H_eig);
                  
 // -------- Constraints: Load A, lbA and ubA -------- //
-            // Constraints: pos/vel boundary consitions, enforced continuity b/w time intervals
-            numCons = numFlatOut*(maxBoundOrder+1)*2 + (numFlatOut-1)*(m-1)*(k_r+1) + (m-1)*(k_yaw+1);
+            // Constraint types: pos/vel boundary consitions, enforced continuity b/w time intervals
+            int numBoundCons = numFlatOut*(maxBoundOrder+1)*2;                  // number of boundary condition constraints
+            int numContCons  = (numFlatOut-1)*(m-1)*(k_r+1) + (m-1)*(k_yaw+1);  // number of "enforced continuity b/w time interval" constraints
+            int numKeyCons = ; // number of keyframe/waypoint constraints (not including boundary conditions)
+            numCons = numBoundCons + numContCons + numKeyCons;
             double* A = new double[numCons*numVars] ();
             double* lbA = new double[numCons] ();
             double* ubA = new double[numCons] ();
@@ -150,6 +163,22 @@ class MinSnapTraj {
                             con += 1;
                         }
                     }
+                    
+                    // TODO: Waypoint/Keyframe constraints (separate from boundary conditions)
+                    for(int flat_ind = 0; flat_ind <= numFlatOut-1; flat_ind++){ // iterate over x,y,z,yaw
+                        // create the constraint
+                        for(int i = p; i <= n; i++){  // iterate over degrees of polynomial segment
+                            A_ind = i + flat_ind*(n+1)*m + con*numVars;
+                            A[A_ind] = pow(time[ti],i-p)*fact(i)/fact(i-p);
+                        }
+                        lbA[con] = bounds[p](0,flat_ind); // initial conditions for p-th derivative
+                        ubA[con] = lbA[con];
+                        con += 1;
+                    }
+                    
+                    // TODO: FOV ax,ay,az constraints (may need to add slack variable)
+                    // TODO: height constraint
+                    // TODO: if needed, "position in cone" constraint
                 }
             }
               
@@ -169,34 +198,42 @@ class MinSnapTraj {
             
             // Print stuff
             assert(con == numCons);
-            cout << endl << "Number of constraints: " << numCons << endl;
+            cout << "Number of constraints: " << numCons << endl;
             cout << "Number of decision variables: " << numVars << endl;
 
-            cout << "Time points (sec): ";
-            for(size_t i = 0; i < time.size(); i++) cout << time[i] << " ";
-            cout << endl << endl;
+            cout << "Segment times (seconds): ";
+            cout << "[";
+            for(size_t i = 0; i < time.size()-1; i++) cout << time[i] << ", ";
+            cout << time[time.size()-1] << "]" << endl;
             
             //cout << "H: " << endl;
-            //printMatrix(H,numVars,numVars);
+            //printArrayAsMatrix(H,numVars,numVars);
             
             //cout << endl << "A: " << endl;
-            //printMatrix(A,numCons,numVars);
+            //printArrayAsMatrix(A,numCons,numVars);
             
             //cout << endl << "lbA: " << endl;
-            //printMatrix(lbA,1, numCons);
+            //printArrayAsMatrix(lbA,1, numCons);
             
             //cout << endl << "ubA: " << endl;
-            //printMatrix(ubA,1, numCons);
+            //printArrayAsMatrix(ubA,1, numCons);
             
-            //cout << endl << "optimal solution: " << endl;
-            //printMatrix(cOpt, 1, numVars);
+            //cout << "SIZE of original optimal solution: " << numVars << endl;
+            //cout << endl << "original optimal solution: " << endl;
+            //printArrayAsMatrix(cOpt, 1, numVars);
             
-            // Load return value
+// -------- Load return value -------- //
+           
+            // NOTE: The decision variable c_ used for the return of solveTrajectory has the form:
+            // c_ = [x_{0,0}, ..., x_{n,0}, y_{0,0}, ..., y_{n,0}, . . ., yaw_{n,0}, x_{0,1}, ..., x_{n,1}, y_{0,1}, . . .],
+            // where x_{i,j} is the x coefficient of order i, at time index j.
+            // The array c_ is "ordered by time" meaning time index 0 comes first, then 1 and so on.
+            
             TrajSolution sol;
             sol.status = status;
-            // want sol.coeffs indexed by time, instead of by flat_ind, so change ordering:
+            // want sol.coeffs indexed by time, instead of by state (see NOTEs), so change ordering:
             vector<double> ti_vect;
-            for(int ti = 0; ti <= m; ti++){
+            for(int ti = 0; ti <= m-1; ti++){
                 ti_vect.clear();
                 for(int flat_ind = 0; flat_ind <= numFlatOut-1; flat_ind++){
                     for(int p = 0; p <= n; p++){
@@ -205,6 +242,10 @@ class MinSnapTraj {
                 }
                 sol.coeffs.push_back(ti_vect);
             }
+            
+            //cout << "SIZE of re-ordered optimal solution: " << sol.coeffs.size()*sol.coeffs[0].size() << endl;
+            cout << "Optimal coefficients (one row per time segment): " << endl;
+            printVectorOfVectors(sol.coeffs, 2);
             
             // Manually clear memory
             delete[] H;
@@ -218,9 +259,10 @@ class MinSnapTraj {
         }
         
         // Given coeffs, and a vector of times, output the evaluated polynomial
-        vector<vector<double>> polyEval(const vector<vector<double>>& coeffs, const vector<double>& tspan){
-            assert(tspan[0] >= time[0] && *tspan.end() <= time[m]);
-            vector<vector<double>> eval;
+        Eigen::MatrixXd polyEval(const vector<vector<double>>& coeffs, const vector<double>& tspan){
+            assert(tspan[0] >= time[0] && tspan.back() <= time[m]);
+            
+            Eigen::MatrixXd eval(tspan.size(), 4);
             
             // Collect all time power terms
             vector<vector<double>> t_pow_mat;
@@ -233,21 +275,20 @@ class MinSnapTraj {
             
             int j = 1;
             double sum_x, sum_y, sum_z, sum_yaw;
-            vector<double> flatout;
             for(size_t i = 0; i <= tspan.size()-1; i++){
-                while(true){
+                while(true){                  
                     if (tspan[i] > time[j]){
                         j += 1;
                     } else {
                         // eval j-th segment at ti
-                        sum_x   = std::inner_product(begin(t_pow_mat[i]), end(t_pow_mat[i]), begin(coeffs[j]), 0);
-                        sum_y   = std::inner_product(begin(t_pow_mat[i]), end(t_pow_mat[i]), begin(coeffs[j]) + n+1, 0);
-                        sum_z   = std::inner_product(begin(t_pow_mat[i]), end(t_pow_mat[i]), begin(coeffs[j]) + 2*(n+1), 0);
-                        sum_yaw = std::inner_product(begin(t_pow_mat[i]), end(t_pow_mat[i]), begin(coeffs[j]) + 3*(n+1), 0);
-                        flatout.clear();
-                        flatout.push_back(sum_x); flatout.push_back(sum_y);
-                        flatout.push_back(sum_z); flatout.push_back(sum_yaw);
-                        eval.push_back(flatout);
+                        sum_x   = std::inner_product(begin(t_pow_mat[i]), end(t_pow_mat[i]), begin(coeffs[j-1]), 0.0);
+                        sum_y   = std::inner_product(begin(t_pow_mat[i]), end(t_pow_mat[i]), begin(coeffs[j-1]) + n+1, 0.0);
+                        sum_z   = std::inner_product(begin(t_pow_mat[i]), end(t_pow_mat[i]), begin(coeffs[j-1]) + 2*(n+1), 0.0);
+                        sum_yaw = std::inner_product(begin(t_pow_mat[i]), end(t_pow_mat[i]), begin(coeffs[j-1]) + 3*(n+1), 0.0);
+                        eval(i, 0) = sum_x;
+                        eval(i, 1) = sum_y;
+                        eval(i, 2) = sum_z;
+                        eval(i, 3) = sum_yaw;
                         break;
                     }
                 }
@@ -300,13 +341,27 @@ class MinSnapTraj {
         }
         
         // Print array as matrix
-        void printMatrix(double *A, int rows, int cols) {
+        void printArrayAsMatrix(double *A, int rows, int cols) {
             int i, j;
             for (i = 0; i < rows; i++) {
                 for (j = 0; j < cols; j++)
                     printf("  % 9.2f", A[i*cols+j]);
                 printf(",\n");
             }
+            printf(",\n");
+        }
+        
+        void printVectorOfVectors(const vector<vector<double>>& inputVector, int dec_places) {
+            size_t innerVecSize = inputVector[0].size(); // Assumes all inner vectors have the same size
+            // Print each inner vector as a row
+            for (const auto& innerVec : inputVector) {
+                for (size_t i = 0; i < innerVecSize; ++i) {
+                    // Print the element with aligned decimals
+                    cout << fixed << setprecision(dec_places) << setw(6 + dec_places) << innerVec[i];
+                }
+                cout << endl;
+            }
+            cout << endl;
         }
         
         // Convert Eigen::MatrixXd to array
