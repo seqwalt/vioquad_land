@@ -118,6 +118,7 @@ target_link_libraries(mpc_node acado Eigen3::Eigen ${catkin_LIBRARIES})
 
 set(DO_TESTS TRUE)
 if(DO_TESTS)
+    set(CMAKE_BUILD_TYPE Debug)
     add_executable(min_snap_test extra/tests/min_snap_traj_test.cpp)
     target_link_libraries(min_snap_test full_qpoases Eigen3::Eigen)
 endif()
