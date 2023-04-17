@@ -13,6 +13,7 @@
     </node>
 
     <!-- MPC node -->
+    <?ignore <node pkg="quad_control" name="mpc_node" type="mpc_node" output="screen" required="true" launch-prefix="gdb -ex run --args" /> ?>
     <node pkg="quad_control" name="mpc_node" type="mpc_node" output="screen" required="true" />
 
 </launch>

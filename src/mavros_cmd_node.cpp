@@ -83,6 +83,10 @@ int main(int argc, char **argv)
     // wait for FCU connection
     ros::Rate FCU_connect_rate(5.0); // 5 Hz
     while(ros::ok() && !mavCmd.currentModes.connected){
+        if (ros::Time::now() - mavCmd.print_request > ros::Duration(3.0)){
+            ROS_INFO("Waiting for FCU connection");
+            mavCmd.print_request = ros::Time::now();
+        }
         ros::spinOnce();
         FCU_connect_rate.sleep();
     }

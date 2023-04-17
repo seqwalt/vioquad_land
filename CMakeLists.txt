@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.0)
 project(quad_control)
 
+set(CMAKE_BUILD_TYPE Debug)
+
 ## Default to C++14
 if(NOT CMAKE_CXX_STANDARD)
   set(CMAKE_CXX_STANDARD 14)
@@ -47,7 +49,9 @@ catkin_package(
 )
 
 ## acado source files and embedded version of qpOASES
-set(codegen_dir "acado/examples/quad_mpc")
+# set(codegen_dir "acado/examples/quad_mpc") # for just mpc, not PAMPC
+set(codegen_dir "acado/PAMPC")
+
 add_library(acado STATIC
     ${codegen_dir}/autogen_code/acado_qpoases_interface.cpp
     ${codegen_dir}/autogen_code/acado_integrator.c
@@ -65,6 +69,7 @@ add_library(acado STATIC
     ${codegen_dir}/qpoases/SRC/EXTRAS/SolutionAnalysis.cpp
 )
 target_include_directories(acado PUBLIC
+    acado/
     ${codegen_dir}/autogen_code
     ${codegen_dir}/qpoases
     ${codegen_dir}/qpoases/INCLUDE
@@ -98,9 +103,6 @@ add_library(full_qpoases STATIC
 target_include_directories(full_qpoases PUBLIC
     ${full_qpoases_dir}
     ${full_qpoases_dir}/include
-    ${full_qpoases_dir}/include/qpOASES
-    ${full_qpoases_dir}/include/qpOASES/extras
-    ${full_qpoases_dir}/src
 )
 
 ## Include directories and add executable
@@ -114,11 +116,10 @@ target_link_libraries(trajectory_gen_node Eigen3::Eigen ${catkin_LIBRARIES})
 
 add_executable(mpc_node src/mpc_node.cpp)
 add_dependencies(mpc_node ${catkin_EXPORTED_TARGETS})
-target_link_libraries(mpc_node acado Eigen3::Eigen ${catkin_LIBRARIES})
+target_link_libraries(mpc_node acado full_qpoases Eigen3::Eigen ${catkin_LIBRARIES})
 
 set(DO_TESTS TRUE)
 if(DO_TESTS)
-    set(CMAKE_BUILD_TYPE Debug)
     add_executable(min_snap_test extra/tests/min_snap_traj_test.cpp)
     target_link_libraries(min_snap_test full_qpoases Eigen3::Eigen)
 endif()

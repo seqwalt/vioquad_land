@@ -14,10 +14,17 @@ int main(int argc, char **argv)
 
     MPC mpc_ctrl;
 
-    // Publisher of control input
-    //mpc_ctrl.mpc_pub = nh.advertise<quad_control::FlatOutputs>("reference/flatoutputs", 1);
+    // Publishers
     mpc_ctrl.mpc_pub = nh.advertise<mavros_msgs::AttitudeTarget>
-            ("mavros/setpoint_raw/attitude", 1);
+            ("mavros/setpoint_raw/attitude", 1); // publish control inputs
+    mpc_ctrl.ref_total_pub = nh.advertise<nav_msgs::Path>
+            ("mpc_total_reference", 1);    // total reference trajectory for mpc to track
+    mpc_ctrl.ref_curr_pub = nh.advertise<nav_msgs::Path>
+            ("mpc_curr_reference", 1);    // reference trajectory for current mpc iteration
+    mpc_ctrl.pred_pub = nh.advertise<nav_msgs::Path>
+            ("mpc_prediciton", 1);    // reference trajectory for current mpc iteration     
+    mpc_ctrl.gt_pub = nh.advertise<nav_msgs::Path>
+            ("mpc_ground_truth", 1); // ground truth pose path
     
     // Subscribers
     mpc_ctrl.pose_sub = nh.subscribe
@@ -25,10 +32,14 @@ int main(int argc, char **argv)
     mpc_ctrl.vel_sub = nh.subscribe
             ("mavros/local_position/velocity_local", 1, &MPC::mavVelCallback, &mpc_ctrl, ros::TransportHints().tcpNoDelay());
     
-    // Timer that publishes control inputs at 100 Hz
-    double freq = 50; // Hz
+    // Timer for publishing control inputs
+    double mpc_freq = 50.0; // publish frequency in Hz
     bool autostart = false;
-    mpc_ctrl.mpc_timer = nh.createTimer(ros::Duration(1./freq), &MPC::mpcCallback, &mpc_ctrl, false, autostart);
+    mpc_ctrl.mpc_timer = nh.createTimer(ros::Duration(1.0/mpc_freq), &MPC::mpcCallback, &mpc_ctrl, false, autostart);
+    
+    // Timer for publishing various paths (reference, groundtruth)
+    double path_freq = 10.0; // publish frequency in Hz
+    mpc_ctrl.path_timer = nh.createTimer(ros::Duration(1.0/path_freq), &MPC::viewPathCallback, &mpc_ctrl, false, true);
 
     // Service server for sending the starting position and heading of the trajectory
     ros::ServiceServer init_mpc_server = nh.advertiseService("initial_reference", &MPC::initRefCallback, &mpc_ctrl);

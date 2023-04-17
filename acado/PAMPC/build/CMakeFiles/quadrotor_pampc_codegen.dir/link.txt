@@ -1,0 +1,1 @@
+/usr/lib/ccache/c++   -std=c++11  -rdynamic CMakeFiles/quadrotor_pampc_codegen.dir/quadrotor_pampc.cpp.o  -o ../quadrotor_pampc_codegen  -Wl,-rpath,/home/sequoyah/Software/ACADOtoolkit/build/lib /home/sequoyah/Software/ACADOtoolkit/build/lib/libacado_toolkit_s.so 

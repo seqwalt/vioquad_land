@@ -54,6 +54,8 @@ class MavrosCmd {
 
         ros::Timer cmdloop_timer;
         ros::Timer setup_timer;
+        
+        ros::Time print_request;
 
         // Pass along mav state info
         void modeCallback(const mavros_msgs::State::ConstPtr& msg) {
@@ -127,7 +129,7 @@ class MavrosCmd {
                         ROS_INFO_STREAM("yaw_err = " << yaw_error);
                         print_request = ros::Time::now();
                     }*/
-                    if (pos_error > 0.1 || yaw_error > 0.05){
+                    if (pos_error > 0.08 || yaw_error > 0.05){
                         // Go to first trajectory pose
                         ROS_INFO_ONCE("Going to start of trajectory.");
                         pos_pub.publish(firstPose_msg);
@@ -294,7 +296,6 @@ class MavrosCmd {
         ros::Time mode_request;
         ros::Time land_request;
         ros::Time setpnt_request;
-        ros::Time print_request;
         bool received_home_pose;
 
         // Private Function

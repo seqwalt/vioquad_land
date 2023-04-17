@@ -32,25 +32,31 @@ void showDuration(string message, chrono::duration<double> t_diff){
 int main(int argc, char **argv)
 {
     // Parameters
-    int order = 4;         // order of piecewise polynomials (must be >= 4 for min snap)
-    int numIntervals = 1;  // number of time intervals (must be >= 1)
-    double T = 3.0;        // duration of trajectory in seconds (must be > 0.0)
+    int order = 8;         // order of piecewise polynomials (must be >= 4 for min snap) (works well when order >= numFOVtimes)
+    int numIntervals = 1;  // number of time intervals (must be >= 1) (setting to 1 is fine if not using keyframes, and only using FOV constraints)
+    double T = 5.0;        // duration of trajectory in seconds (must be > 0.0)
     vector<double> times = MinSnapTraj::linspace(0.0, T, numIntervals + 1); // times for the polynomial segments
     
 // ------------------ Position and velocity boundary conditions ------------------ //
     MinSnapTraj::Matrix24d p0_bounds; // p=0 means 0th derivative
     // pos/yaw:   x    y    z   yaw
-    p0_bounds << -2.3, -2.3, 2.5, 0.0, // initial
-                 0.0, 0.0, 0.1, 0.0; // final
+    p0_bounds << -2.4, -2.4, 2.5, 0.0, // initial
+                  0.0,  0.0, 0.1, 0.0; // final
                  
     MinSnapTraj::Matrix24d p1_bounds; // p=1 means 1st derivative
     // velocity: vx   vy   vz   vyaw
     p1_bounds << 0.0, 0.0, 0.0, 0.0, // initial
                  0.0, 0.0, 0.0, 0.0; // final
+                 
+    MinSnapTraj::Matrix24d p2_bounds; // p=2 means 2nd derivative
+    // accel:    ax   ay   az   ayaw
+    p2_bounds << 0.0, 0.0, 0.0, 0.0, // initial
+                 0.0, 0.0, 0.0, 0.0; // final
     
     MinSnapTraj::vectOfMatrix24d BC;
     BC.push_back(p0_bounds);
     BC.push_back(p1_bounds);
+    BC.push_back(p2_bounds);
     
 // ------------------ Keyframe/Waypoints ------------------ //
     // - Fix x, y, z and/or yaw at a desired time. Can fix just x, or just z and yaw, for example.
@@ -63,26 +69,38 @@ int main(int argc, char **argv)
     MinSnapTraj::keyframe k1y {time_ind, 1, pos(1)};
     MinSnapTraj::keyframe k1z {time_ind, 2, pos(2)};
     //vector<MinSnapTraj::keyframe> Keyframes {k1x, k1y, k1z}; // store the keyframe
-    vector<MinSnapTraj::keyframe> Keyframes; // store the keyframe
+    vector<MinSnapTraj::keyframe> Keyframes {}; // no keyframes
+    
+// ------------------ FOV data ------------------ //
+    MinSnapTraj::FOVdata fov_data;
+    fov_data.do_fov = true;
+    fov_data.l = vector<double> {0.0,0.0,0.0};  // 3D landmark to keep in FOV
+    fov_data.alpha_x = M_PI/4;                  // half of horizontal fov (radians)
+    fov_data.alpha_y = M_PI/4;                  // half of vertical fov (radians)
     
 // ------------------ Solve the trajectory ------------------ //
-    MinSnapTraj prob(order, times, BC, Keyframes);          // create object
+    MinSnapTraj prob(order, times, BC, Keyframes, fov_data);  // create object
     
-    chrono::steady_clock::time_point tic, toc;              // time the solver
+    chrono::steady_clock::time_point tic, toc;                // time the solver
     tic = chrono::steady_clock::now();
     
-    MinSnapTraj::TrajSolution sol = prob.solveTrajectory(); // solve
+    MinSnapTraj::TrajSolution sol = prob.solveTrajectory();   // solve
     
     toc = chrono::steady_clock::now();
     showDuration("Init solve time: ", toc - tic);
     
 // ------------------ Analyze/save trajectory ------------------ //
-    vector<double> tspan = MinSnapTraj::linspace(0.0, T, 100); // time points to evaluate the trajectory
-    Eigen::MatrixXd eval = prob.polyEval(sol.coeffs, tspan);
+    double time_step = 0.1;
+    int numIntersampleTimes = 10;
+    double num_times = 1 + (double)numIntersampleTimes*(T/time_step);
+    vector<double> tspan = MinSnapTraj::linspace(0.0, T, num_times); // time points to evaluate the trajectory
+    //vector<double> tspan = MinSnapTraj::linspace(0.0, T, 50); // time points to evaluate the trajectory
+    //Eigen::MatrixXd eval_flat = prob.FlatOutputTraj(sol.coeffs, tspan);
+    Eigen::MatrixXd eval_quat = prob.QuaternionTraj(sol.coeffs, tspan);
     
     // Print trajectory
     //   For more advanced printing: https://eigen.tuxfamily.org/dox/structEigen_1_1IOFormat.html
-    //cout << "---- Trajectory: x, y, z, yaw ----" << endl;
+    //cout << "---- Trajectory: t, x, y, z, yaw, vx, vy, vz, vyaw, ax, ay, az, ayaw, sx, sy, sz, syaw ----" << endl;
     //cout << eval << endl;
     
     // Save trajectory in a file within dir_path directory (i.e. extra/tests folder)
@@ -92,7 +110,8 @@ int main(int argc, char **argv)
     ghc::filesystem::create_directories(dir_path + data_dir); // create new directory for data
     
     string traj_file = "test_traj.csv";
-    saveMatrix(dir_path + data_dir + traj_file, eval);
+    //saveMatrix(dir_path + data_dir + traj_file, eval_flat);
+    saveMatrix(dir_path + data_dir + traj_file, eval_quat);
     
     string key_file = "pos_keyframes.csv";
     saveMatrix(dir_path + data_dir + key_file, pos);
