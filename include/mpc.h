@@ -61,8 +61,6 @@ ACADOworkspace acadoWorkspace;
 class MPC {
     public:
         // Some convenient public ACADO definitions
-
-
         ros::Publisher mpc_pub;
         ros::Publisher ref_total_pub;
         ros::Publisher ref_curr_pub;
@@ -83,13 +81,6 @@ class MPC {
             // Clear solver memory.
             memset(&acadoWorkspace, 0, sizeof( acadoWorkspace ));
             memset(&acadoVariables, 0, sizeof( acadoVariables ));
-
-            // load parameters
-            //TODO (low priority) paramMPC par = loadParams(file);
-
-            // set acado online data (cost matrix Q, camera orientation, landing pad position estimate, etc)
-            // TODO (low priority) acadoVariables.od[0] = paramMPC.diagQ[0];
-            // try acadoVariables.od[0:M] = paramMPC.diagQ;
 
             // Initialize the solver
             acado_initializeSolver();
@@ -227,9 +218,6 @@ class MPC {
                     break;
                 }
 
-                // Shift the initialization (look at acado_common.h)
-                //acado_shiftStates(2, 0, 0);
-                //acado_shiftControls(0);
                 // Prepare for the next step
                 acado_preparationStep();
             }
@@ -282,16 +270,6 @@ class MPC {
         
         double T, wx, wy, wz;
         acado_timer t;
-
-        // TODO (low priority) setup yaml file reading
-//         // MPC parameters from yaml file
-//         struct paramMPC {
-//             std::vector<double> diagQ;  // diagonal elemetns of cost matrix
-//         };
-//
-//         paramMPC loadParams(const std::string file){
-//
-//         }
 
         void init_acadoVariables(){
             
@@ -483,7 +461,7 @@ class MPC {
             MinSnapTraj::Matrix24d p0_bounds; // p=0 means 0th derivative
             // pos/yaw:   x    y    z   yaw
             p0_bounds << -2.4, -2.4, 2.5, 0.0, // initial
-                        0.0,  0.0, 0.1, 0.0; // final
+                        0.0,  0.0, 0.25, 0.0; // final
 
             MinSnapTraj::Matrix24d p1_bounds; // p=1 means 1st derivative
             // velocity: vx   vy   vz   vyaw

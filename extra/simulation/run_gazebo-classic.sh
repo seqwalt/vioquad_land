@@ -31,8 +31,8 @@ check_path_exists() {
   IFS=":" read -ra dirs <<< "${!path_name}"
   # Loop through each directory and check for existence
   for dir in "${dirs[@]}"; do
-    # Check if the directory exists
-    if ! [ -d "$dir" ]; then
+    # Check if the directory exists if its not an empty string
+    if ! [ -d "$dir" ] && ! [ "" == "$dir" ] ; then
       echo "In ${path_name}, directory $dir does not exist"
       exit 1
     fi
@@ -45,8 +45,8 @@ check_path_exists() {
 
 # Check if an argument is provided to script
 if [ $# -ne 1 ]; then
-    echo "Usage: $0 <path/to/PX4-Autopilot>"
-    exit 1
+  echo "Usage: $0 <path/to/PX4-Autopilot>"
+  exit 1
 fi
 
 # Store px4 path
@@ -54,8 +54,8 @@ px4path="$1"
 check_dir $px4path "PX4-Autopilot"
 
 # Store current path
-sim_script_dir=$(pwd)
-check_dir $sim_script_dir "simulation"
+sim_dir=$(pwd)
+check_dir $sim_dir "simulation"
 
 #### ---- Setup and start gazebo ---- ####
 # See https://docs.px4.io/main/en/simulation/ros_interface.html#launching-gazebo-classic-with-ros-wrappers
@@ -65,18 +65,21 @@ check_command_success "cd to PX4-Autopilot"
 DONT_RUN=1 make px4_sitl_default gazebo-classic
 check_command_success "DONT_RUN=1 make px4_sitl_default gazebo-classic"
 
-source $sim_script_dir/../../../../devel/setup.bash
+source $sim_dir/../../../../devel/setup.bash
 check_command_success "source workspace of quad_control"
 
 source Tools/simulation/gazebo-classic/setup_gazebo.bash $(pwd) $(pwd)/build/px4_sitl_default
 check_command_success "update Gazebo and LD paths"
 
 export ROS_PACKAGE_PATH=$ROS_PACKAGE_PATH:$(pwd):$(pwd)/Tools/simulation/gazebo-classic/sitl_gazebo-classic
-check_path_exists ROS_PACKAGE_PATH
+check_path_exists "ROS_PACKAGE_PATH"
 check_command_success "update ROS_PACKAGE_PATH"
 
-export GAZEBO_MODEL_PATH=$GAZEBO_MODEL_PATH:$sim_script_dir/models
-check_path_exists GAZEBO_MODEL_PATH
+export GAZEBO_MODEL_PATH=$GAZEBO_MODEL_PATH:$sim_dir/models:$sim_dir/worlds
+check_path_exists "GAZEBO_MODEL_PATH"
 check_command_success "update GAZEBO_MODEL_PATH"
 
-roslaunch px4 posix_sitl.launch gui:=false
+roslaunch px4 posix_sitl.launch \
+  gui:=true \
+  sdf:=$sim_dir/models/iris_downward_camera/iris_downward_camera.sdf \
+  world:=$sim_dir/worlds/landing_pad.world

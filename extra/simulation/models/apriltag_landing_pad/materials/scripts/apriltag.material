@@ -1,0 +1,16 @@
+material apriltag_landing_pad
+{
+  technique
+  {
+    pass
+    {
+      lighting off
+      texture_unit
+      {
+        recursive_tag48_12_0_1_2.png
+        filtering none none none
+        scale 1.0 1.0
+      }
+    }
+  }
+}

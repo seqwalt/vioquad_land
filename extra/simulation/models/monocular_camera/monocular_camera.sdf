@@ -5,21 +5,21 @@
     <link name="link">
       <inertial>
         <pose>0.01 0.025 0.025 0 0 0</pose>
-        <mass>0.01</mass>
+        <mass>1e-16</mass>
         <inertia>
-          <ixx>4.15e-6</ixx>
+          <ixx>1e-16</ixx>
           <ixy>0</ixy>
           <ixz>0</ixz>
-          <iyy>2.407e-6</iyy>
+          <iyy>1e-16</iyy>
           <iyz>0</iyz>
-          <izz>2.407e-6</izz>
+          <izz>1e-16</izz>
         </inertia>
       </inertial>
       <visual name="visual">
-        <pose>0 0 0 0 0 0</pose>
+        <pose>0 0 0 0 1.57 0</pose>
         <geometry>
           <mesh>
-            <uri>model://realsense_camera/meshes/realsense.dae</uri>
+            <uri>model://monocular_camera/meshes/hokuyo.dae</uri>
           </mesh>
         </geometry>
       </visual>
@@ -27,15 +27,15 @@
         <camera>
           <horizontal_fov angle='1.57079633'/>
           <image width='640' height='480' format='R8G8B8'/>
-          <clip near='0.1' far='100'/>
+          <clip near='0.01' far='100'/>
         </camera>
         <plugin name="camera_plugin" filename="libgazebo_ros_camera.so">
           <alwaysOn>true</alwaysOn>
           <imageTopicName>image_raw</imageTopicName>
           <cameraInfoTopicName>camera_info</cameraInfoTopicName>
           <updateRate>30.0</updateRate>
-          <cameraName>usb_cam</cameraName>
-          <frameName>/robot_camera_link</frameName>
+          <cameraName>monocular_camera</cameraName>
+          <frameName>/camera_link</frameName>
           <CxPrime>320.5</CxPrime>
           <Cx>320.5</Cx>
           <Cy>240.5</Cy>

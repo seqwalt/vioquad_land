@@ -7,7 +7,7 @@
 
     <include>
       <uri>model://monocular_camera</uri>
-      <pose>0.108 0 -0.01 0 1.5708 0</pose>
+      <pose>0.108 0 0 0 1.5708 3.1415</pose>
     </include>
     <joint name="monocular_camera_joint" type="revolute">
       <child>monocular_camera::link</child>
