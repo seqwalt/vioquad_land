@@ -9,7 +9,7 @@
           <size>1.0 1.0 0.01</size>
           </box>
         </geometry>
-           <material>
+        <material>
           <script>
             <uri>model://apriltag_landing_pad/materials/scripts</uri>
             <uri>model://apriltag_landing_pad/materials/textures</uri>

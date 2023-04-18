@@ -25,8 +25,8 @@
       </visual>
       <sensor name='monocular_camera' type='camera' always_on='1' update_rate='30' visualize='true'>
         <camera>
-          <horizontal_fov angle='1.57079633'/>
-          <image width='640' height='480' format='R8G8B8'/>
+          <horizontal_fov angle='2.707005'/>
+          <image width='820' height='616' format='R8G8B8'/>
           <clip near='0.01' far='100'/>
         </camera>
         <plugin name="camera_plugin" filename="libgazebo_ros_camera.so">
@@ -36,9 +36,9 @@
           <updateRate>30.0</updateRate>
           <cameraName>monocular_camera</cameraName>
           <frameName>/camera_link</frameName>
-          <CxPrime>320.5</CxPrime>
-          <Cx>320.5</Cx>
-          <Cy>240.5</Cy>
+          <CxPrime>410.5</CxPrime>
+          <Cx>410.5</Cx>
+          <Cy>308.5</Cy>
           <hackBaseline>0</hackBaseline>
           <focalLength>320.000101</focalLength>
           <distortionK1>0.0</distortionK1>
