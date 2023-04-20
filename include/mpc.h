@@ -454,7 +454,7 @@ class MPC {
             // Parameters
             int order = 8;         // order of piecewise polynomials (must be >= 4 for min snap) (works well when order >= numFOVtimes)
             int numIntervals = 1;  // number of time intervals (must be >= 1) (setting to 1 is fine if not using keyframes, and only using FOV constraints)
-            double T = 5.0;        // duration of trajectory in seconds (must be > 0.0)
+            double T = 3.5;        // duration of trajectory in seconds (must be > 0.0)
             vector<double> times = MinSnapTraj::linspace(0.0, T, numIntervals + 1); // times for the polynomial segments
 
             // ------------------ Position and velocity boundary conditions ------------------ //
@@ -483,7 +483,7 @@ class MPC {
 
             // ------------------ FOV data ------------------ //
             MinSnapTraj::FOVdata fov_data;
-            fov_data.do_fov = true;
+            fov_data.do_fov = false;
             fov_data.l = vector<double> {0.0,0.0,0.0};  // 3D landmark to keep in FOV
             fov_data.alpha_x = M_PI/4;                  // half of horizontal fov (radians)
             fov_data.alpha_y = M_PI/4;                  // half of vertical fov (radians)

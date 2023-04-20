@@ -1,4 +1,4 @@
-material apriltag_landing_pad
+material landing_pad_material
 {
   technique
   {
@@ -7,9 +7,9 @@ material apriltag_landing_pad
       lighting off
       texture_unit
       {
-        recursive_tag48_12_0_1_2.png
+        texture ../textures/recursive_tag48_12_0_1_2.png
         filtering none none none
-        scale 6.0 6.0
+        scale 1.0 1.0
       }
     }
   }

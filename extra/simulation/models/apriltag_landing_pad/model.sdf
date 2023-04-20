@@ -6,14 +6,14 @@
       <visual name='main_Visual'>
         <geometry>
           <box>
-          <size>1.0 1.0 0.01</size>
+            <size>1.0 1.0 0.01</size>
           </box>
         </geometry>
         <material>
           <script>
             <uri>model://apriltag_landing_pad/materials/scripts</uri>
             <uri>model://apriltag_landing_pad/materials/textures</uri>
-            <name>apriltag_landing_pad</name>
+            <name>landing_pad_material</name>
           </script>
         </material>
       </visual>
