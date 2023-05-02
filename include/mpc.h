@@ -273,8 +273,6 @@ class MPC {
 
         void init_acadoVariables(){
             
-            // TODO: generate trajectory with many time steps. Find the closest current time, then select the appropriate data for the given time horizon.
-            // TODO: efficiently re-generate trajectory with qpOases
             // generate and store trajectory
             numIntersampleTimes = 10;
             traj = genTraj(numIntersampleTimes); // generate trajectory. each row has t, x, y, z, vx, vy, vz, qw, qx, qy, qz
@@ -372,8 +370,8 @@ class MPC {
                 acadoVariables.W[i*blk_size + NY*7 + 7] = 5.0f * xExp; // v_x gain
                 acadoVariables.W[i*blk_size + NY*8 + 8] = 5.0f * xExp; // v_y gain
                 acadoVariables.W[i*blk_size + NY*9 + 9] = 5.0f * xExp; // v_z gain
-                acadoVariables.W[i*blk_size + NY*10 + 10] = 0.0f * xExp; // horiz perception cost
-                acadoVariables.W[i*blk_size + NY*11 + 11] = 0.0f * xExp; // vert perception cost
+                acadoVariables.W[i*blk_size + NY*10 + 10] = 50.0f * xExp; // horiz perception cost
+                acadoVariables.W[i*blk_size + NY*11 + 11] = 50.0f * xExp; // vert perception cost
                 acadoVariables.W[i*blk_size + NY*12 + 12] = 1.0f * uExp; // T gain
                 acadoVariables.W[i*blk_size + NY*13 + 13] = 4.0f * uExp; // w_x gain
                 acadoVariables.W[i*blk_size + NY*14 + 14] = 4.0f * uExp; // w_y gain
@@ -392,8 +390,8 @@ class MPC {
             acadoVariables.WN[NYN*7 + 7] = 5.0f * xExp; // vz gain
             acadoVariables.WN[NYN*8 + 8] = 5.0f * xExp; // vz gain
             acadoVariables.WN[NYN*9 + 9] = 5.0f * xExp; // vz gain
-            acadoVariables.WN[NYN*10 + 10] = 0.0f * xExp; // horiz perception cost
-            acadoVariables.WN[NYN*11 + 11] = 0.0f * xExp; // vert perception cost
+            acadoVariables.WN[NYN*10 + 10] = 50.0f * xExp; // horiz perception cost
+            acadoVariables.WN[NYN*11 + 11] = 50.0f * xExp; // vert perception cost
             
             // Initialize online data
             for (int i = 0; i < N + 1; ++i){
@@ -483,7 +481,7 @@ class MPC {
 
             // ------------------ FOV data ------------------ //
             MinSnapTraj::FOVdata fov_data;
-            fov_data.do_fov = false;
+            fov_data.do_fov = true;
             fov_data.l = vector<double> {0.0,0.0,0.0};  // 3D landmark to keep in FOV
             fov_data.alpha_x = M_PI/4;                  // half of horizontal fov (radians)
             fov_data.alpha_y = M_PI/4;                  // half of vertical fov (radians)
