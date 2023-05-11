@@ -43,8 +43,9 @@
             <!-- manually defined mapping function r = c1*f*fun(theta/c2 + c3) -->
             <!-- More information here: https://en.wikipedia.org/wiki/Fisheye_lens#Mapping_function -->
             <custom_function>
-              <c1>1.0</c1>   <!-- linear scaling -->
+              <c1>2.0</c1>   <!-- linear scaling -->
               <c2>2.0</c2>      <!-- angle scaling -->
+              <c3>0.0</c3>      <!-- angle offset -->
               <f>1.0</f>      <!-- one more scaling parameter -->
               <fun>tan</fun>  <!-- one of sin,tan,id -->
             </custom_function>
@@ -66,6 +67,11 @@
           <cameraInfoTopicName>camera_info</cameraInfoTopicName>
           <frameName>camera_link</frameName>
           <hackBaseline>0.00</hackBaseline>
+          <distortionK1>-0.1</distortionK1>
+          <distortionK2>0.0057</distortionK2>
+          <distortionK3>-0.00011</distortionK3>
+          <distortionT1>0.0</distortionT1>
+          <distortionT2>0.0</distortionT2>
         </plugin>
       </sensor>
     </link>

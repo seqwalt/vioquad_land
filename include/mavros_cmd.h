@@ -86,7 +86,7 @@ class MavrosCmd {
                     geometry_msgs::PoseStamped takeoff_msg;
                     takeoff_msg.header.stamp = ros::Time::now();
                     takeoff_msg.pose = home_pose;
-                    double z_ref = 1.0;
+                    double z_ref = 0.3;
                     takeoff_msg.pose.position.z += z_ref;
 
                     // Error

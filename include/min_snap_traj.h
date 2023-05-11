@@ -139,7 +139,8 @@ class MinSnapTraj {
             
             // Convert from Eigen matrix to array that can be used by qpOASES
             Eigen::MatrixXd H_eig(numVars, numVars);
-            H_eig = H_min_snap + H_min_z;
+            double min_z_weight = 8.0;
+            H_eig = H_min_snap + min_z_weight*H_min_z;
             double* H = matrixToArray(H_eig);
 
 // -------- Graident Vector: Build g vector -------- //

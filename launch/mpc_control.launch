@@ -1,14 +1,13 @@
 <launch>
-    
-    <!-- Gazebo config -->
+
+    <!-- Arguments -->
     <arg name="simulation" default="false" />
-    
-    <!-- Controller config -->
-    <arg name="controller" default="mpc" /> <!-- options: geometric, position, mpc -->
-    
+    <arg name="cam_name" default="/monocular_camera" />
+    <arg name="img_topic" default="image_rect" />
+
     <!-- Controller node -->
     <node pkg="quad_control" name="mavros_cmd_node" type="mavros_cmd_node" output="screen" required="true">
-        <param name="ctrl_mode" type="string" value="$(arg controller)" />
+        <param name="ctrl_mode" type="string" value="mpc" />
         <param name="enable_sim" value="$(arg simulation)" />
     </node>
 
@@ -16,5 +15,10 @@
     <?ignore <node pkg="quad_control" name="mpc_node" type="mpc_node" output="screen" required="true" launch-prefix="gdb -ex run --args" /> ?>
     <node pkg="quad_control" name="mpc_node" type="mpc_node" output="screen" required="true" />
 
-</launch>
+    <!-- Apriltag node -->
+    <include file="$(find apriltag_ros)/launch/continuous_detection.launch">
+        <arg name="camera_name" value="$(arg cam_name)"/>
+        <arg name="image_topic" value="$(arg img_topic)"/>
+    </include>
 
+</launch>

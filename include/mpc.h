@@ -99,8 +99,8 @@ class MPC {
 
         bool initRefCallback(quad_control::InitSetpoint::Request &req, quad_control::InitSetpoint::Response &res){
             res.success = true;
-            res.position.x = -2.4;
-            res.position.y = -2.4;
+            res.position.x = -0.1;
+            res.position.y = -0.1;
             res.position.z = 2.5;
             res.yaw = 0.0;
             ROS_INFO_STREAM("Initial MPC pose sent.");
@@ -370,8 +370,8 @@ class MPC {
                 acadoVariables.W[i*blk_size + NY*7 + 7] = 5.0f * xExp; // v_x gain
                 acadoVariables.W[i*blk_size + NY*8 + 8] = 5.0f * xExp; // v_y gain
                 acadoVariables.W[i*blk_size + NY*9 + 9] = 5.0f * xExp; // v_z gain
-                acadoVariables.W[i*blk_size + NY*10 + 10] = 50.0f * xExp; // horiz perception cost
-                acadoVariables.W[i*blk_size + NY*11 + 11] = 50.0f * xExp; // vert perception cost
+                acadoVariables.W[i*blk_size + NY*10 + 10] = 5.0f * xExp; // horiz perception cost
+                acadoVariables.W[i*blk_size + NY*11 + 11] = 5.0f * xExp; // vert perception cost
                 acadoVariables.W[i*blk_size + NY*12 + 12] = 1.0f * uExp; // T gain
                 acadoVariables.W[i*blk_size + NY*13 + 13] = 4.0f * uExp; // w_x gain
                 acadoVariables.W[i*blk_size + NY*14 + 14] = 4.0f * uExp; // w_y gain
@@ -390,8 +390,8 @@ class MPC {
             acadoVariables.WN[NYN*7 + 7] = 5.0f * xExp; // vz gain
             acadoVariables.WN[NYN*8 + 8] = 5.0f * xExp; // vz gain
             acadoVariables.WN[NYN*9 + 9] = 5.0f * xExp; // vz gain
-            acadoVariables.WN[NYN*10 + 10] = 50.0f * xExp; // horiz perception cost
-            acadoVariables.WN[NYN*11 + 11] = 50.0f * xExp; // vert perception cost
+            acadoVariables.WN[NYN*10 + 10] = 5.0f * xExp; // horiz perception cost
+            acadoVariables.WN[NYN*11 + 11] = 5.0f * xExp; // vert perception cost
             
             // Initialize online data
             for (int i = 0; i < N + 1; ++i){
@@ -452,13 +452,13 @@ class MPC {
             // Parameters
             int order = 8;         // order of piecewise polynomials (must be >= 4 for min snap) (works well when order >= numFOVtimes)
             int numIntervals = 1;  // number of time intervals (must be >= 1) (setting to 1 is fine if not using keyframes, and only using FOV constraints)
-            double T = 3.5;        // duration of trajectory in seconds (must be > 0.0)
+            double T = 4;        // 3.5 duration of trajectory in seconds (must be > 0.0)
             vector<double> times = MinSnapTraj::linspace(0.0, T, numIntervals + 1); // times for the polynomial segments
 
             // ------------------ Position and velocity boundary conditions ------------------ //
             MinSnapTraj::Matrix24d p0_bounds; // p=0 means 0th derivative
             // pos/yaw:   x    y    z   yaw
-            p0_bounds << -2.4, -2.4, 2.5, 0.0, // initial
+            p0_bounds << -0.1, -0.1, 2.5, 0.0, // initial
                         0.0,  0.0, 0.25, 0.0; // final
 
             MinSnapTraj::Matrix24d p1_bounds; // p=1 means 1st derivative
