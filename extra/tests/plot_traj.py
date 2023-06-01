@@ -5,7 +5,7 @@ import numpy as np
 
 # Load trajectory and keyframes
 traj = np.loadtxt("test_data/test_traj.csv", delimiter=",", dtype=float)
-keys = np.loadtxt("test_data/pos_keyframes.csv", delimiter=",", dtype=float)
+keys = np.loadtxt("test_data/keyframes.csv", delimiter=",", dtype=float)
 
 # Split up trajectory data
 t   = traj[:,0]
@@ -13,6 +13,8 @@ x = traj[:,1];    y = traj[:,2];    z = traj[:,3];    yaw = traj[:,4]      # pos
 #vx = traj[:,5];   vy = traj[:,6];   vz = traj[:,7];   vyaw = traj[:,8]      # velocity
 #ax = traj[:,9];   ay = traj[:,10];  az = traj[:,11];  ayaw = traj[:,12]     # acceleration
 #jx = traj[:,13];  jy = traj[:,14];  jz = traj[:,15];  jyaw = traj[:,16]     # jerk
+
+x_keys = keys[:,0]; y_keys = keys[:,1]; z_keys = keys[:,2];
 
 # 2D Plots
 
@@ -39,7 +41,7 @@ for i in plot_these:
     plt.subplots_adjust(bottom=0.1, left=0.05, right=0.95, top=0.9) # adjust plot margins
     fig.suptitle(titles[i],fontsize=16)
     plt.gcf().canvas.manager.set_window_title(titles[i])
-    
+
 # x-z plot
 fig, axz = plt.subplots()
 axz.plot(x,z,'.', label='FOV constrained traj');
@@ -56,7 +58,7 @@ plt.gcf().canvas.manager.set_window_title('X-Z Plot')
 ax3d = plt.figure().add_subplot(projection='3d')
 ax3d.plot(x, y, z, label='reference')
 ax3d.scatter(x[0], y[0], z[0], c='black', marker='o', label='initial position')
-#ax3d.scatter(keys[0], keys[1], keys[2], c='green', marker='^', label='keyframe')
+ax3d.scatter(x_keys, y_keys, z_keys, c='green', marker='^', label='keyframes')
 ax3d.set_title('Minimum Snap Trajectory')
 ax3d.legend()
 ax3d.set_xlabel('X')

@@ -7,7 +7,6 @@ Panels:
         - /Global Options1
         - /Status1
         - /Ground Truth2/Shape1
-        - /TF1/Frames1
       Splitter Ratio: 0.5
     Tree Height: 369
   - Class: rviz/Selection
@@ -195,38 +194,6 @@ Visualization Manager:
       Queue Size: 2
       Transport Hint: raw
       Unreliable: false
-      Value: true
-    - Class: rviz/TF
-      Enabled: true
-      Frame Timeout: 15
-      Frames:
-        All Enabled: false
-        base_link:
-          Value: false
-        base_link_frd:
-          Value: false
-        camera_link:
-          Value: true
-        map:
-          Value: false
-        map_ned:
-          Value: false
-        odom:
-          Value: false
-        odom_ned:
-          Value: false
-      Marker Alpha: 1
-      Marker Scale: 1
-      Name: TF
-      Show Arrows: true
-      Show Axes: true
-      Show Names: true
-      Tree:
-        camera_link:
-          map:
-            map_ned:
-              {}
-      Update Interval: 0
       Value: true
   Enabled: true
   Global Options:

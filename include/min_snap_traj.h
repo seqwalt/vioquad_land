@@ -59,351 +59,35 @@ class MinSnapTraj {
                 numVars = m*numFlatOut*(n+1); // number of desicion variables (no slack variables)
             }
             
+            H = buildHessian();
+            g = buildGvector();
+            
             bounds = bounds_in;           // boundary conditions
             keys = keys_in;               // keyframes
         }
         
         TrajSolution solveTrajectory() {
             
-// -------- Hessian: Build H matrix -------- //
-            
-            // NOTE: The decision variable c used to solve the QP has the following form:
-            // c = [x_{0,0}, x_{1,0}, ..., x_{n,0}, x_{0,1}, x_{1,1}, ..., x_{n,1}, . . ., x_{n,m-1}, y_{0,0}, y_{1,0}, . . .],
-            // where x_{i,j} is the x coefficient of order i, at time index j.
-            // The array c is "ordered by state" meaning x comes first, then y, z, yaw.
-            
-            // Specify the trajectory is min snap (minimize 4-th derivative of r)
-            int k_r = 4;
-            int k_yaw = 2;
-            assert(k_r <= n && k_yaw <= 2);
-            vector<int> k = {k_r, k_r, k_r, k_yaw}; // store for later use
-            
-            // Init some variables
-            double factorial_term;
-            double index_term;
-            double integral_term;
-            int H_ind;
-            
-            // Init some matrices
-            Eigen::MatrixXd H_min_snap(numVars, numVars);
-            Eigen::MatrixXd H_min_z(numVars, numVars);
-            H_min_snap = Eigen::MatrixXd::Zero(numVars, numVars);
-            H_min_z = Eigen::MatrixXd::Zero(numVars, numVars);
-            Eigen::MatrixXd H_block(n+1, n+1);
-            Eigen::MatrixXd zero_block = Eigen::MatrixXd::Zero(n+1, n+1);
-            
-            // Load data into H_min_snap and H_min_z
-            for(int ti = 0; ti <= m-1; ti++){                           // iterate over time intervals
-                // Minimize Snap
-                for(int flat_ind = 0; flat_ind <= numFlatOut-1; flat_ind++){    // iterate over x,y,z,yaw
-                    // Store current block matrix for given flat output (x, y ...)
-                    H_block = zero_block;
-                    for(int i = k[flat_ind]; i <= n; i++){                  // iterate over degrees
-                        for(int j = k[flat_ind]; j <= n; j++){
-                            factorial_term = fact(i)*fact(j)/(fact(i-k[flat_ind])*fact(j-k[flat_ind]));
-                            index_term = (double)(i+j-2*k[flat_ind]+1);
-                            integral_term = (1/index_term)*(pow(time[ti+1],index_term) - pow(time[ti],index_term));
-                            if (i == j){
-                                H_block(i,j) = factorial_term*integral_term;
-                            } else {
-                                H_block(i,j) = factorial_term*0.5*integral_term;
-                            }
-                            
-                        }
-                    }
-                    H_ind = ti*(n+1) + flat_ind*m*(n+1);
-                    H_min_snap.block(H_ind, H_ind, n+1, n+1) = H_block;
-                    //cout << "H_block: " << endl
-                    //    << H_block << endl << endl;
-                }
-                
-                // Minimize z (flat_ind = 2)
-                if(do_fov_constraint){
-                    H_block = zero_block;
-                    for(int i = 0; i <= n; i++){ // iterate over degrees
-                        for(int j = 0; j <= n; j++){
-                            index_term = (double)(i+j+1);
-                            integral_term = (1/index_term)*(pow(time[ti+1],index_term) - pow(time[ti],index_term));
-                            if (i == j){
-                                H_block(i,j) = integral_term;
-                            } else {
-                                H_block(i,j) = 0.5*integral_term;
-                            }
-                            
-                        }
-                    }
-                    H_ind = ti*(n+1) + 2*m*(n+1);
-                    H_min_z.block(H_ind, H_ind, n+1, n+1) = H_block;
-                }
-            }
-            
-            // Convert from Eigen matrix to array that can be used by qpOASES
-            Eigen::MatrixXd H_eig(numVars, numVars);
-            double min_z_weight = 8.0;
-            H_eig = H_min_snap + min_z_weight*H_min_z;
-            double* H = matrixToArray(H_eig);
-
-// -------- Graident Vector: Build g vector -------- //
-            double* g = new double[numVars] (); // set g to zeros
-            if(do_fov_constraint){
-                g[numVars - 2] = 9000; // slack variable weight for ax az constraints
-                g[numVars - 1] = 9000; // slack variable weight for ay az constraints
-            }
-            
-            
-// -------- Constraints: Load A, lbA and ubA -------- //
-            
-            // Constraint types:
-            // - pos/vel boundary consitions
-            // - enforced continuity b/w time intervals
-            // - keyframes/waypoints
-            // - camera FOV constraints
-            
-            int maxBoundOrder = bounds.size() - 1; // 0 if only position boundary condition (BC), 2 if up to acceleration BC, for example
-            int numFOVtimes;
-            if (do_fov_constraint){
-                numFOVtimes = 8;  // (>= 2) number of time instants to enforce FOV constraint (use 4 (resp. 8) when theta values are fixed (resp. have +-0.25 constraint relaxation))
-            } else {
-                numFOVtimes = 2;  // setting to 2 is same as no fov constraints, becaues the initial and final conditions are already fixed
-            }
-            
-            int posConSides = 8;    // number of sides of cone in position constraint
-            
-            int numBoundCons = numFlatOut*(maxBoundOrder+1)*2;                  // number of boundary condition constraints
-            int numContCons  = (numFlatOut-1)*(m-1)*(k_r+1) + (m-1)*(k_yaw+1);  // number of "enforced continuity b/w time interval" constraints
-            int numKeyCons   = keys.size();                                     // number of keyframe/waypoint constraints (not including boundary conditions)
-            int numFovCons   = 4*(numFOVtimes - 2);                             // number of field-of-view (FOV) constraints
-            int numPosCons   = (posConSides + 2)*(numFOVtimes - 2);             // number of position constraints
-            numCons = numBoundCons + numContCons + numKeyCons + numFovCons + numPosCons;
-            
-            double* A = new double[numCons*numVars] ();
-            double* lbA = new double[numCons] ();
-            double* ubA = new double[numCons] ();
-            
-            int con = 0; // current constraint index
-            int A_ind, A_ind_seg1, A_ind_seg2;   // 1-D array indices of constraint matrix A
-            for(int ti = 0; ti <= m; ti++){      // iterate over time points
-                if(ti == 0){ // initial time
-                    // Fix initial positions/yaw and velocities
-                    for(int flat_ind = 0; flat_ind <= numFlatOut-1; flat_ind++){ // iterate over x,y,z,yaw
-                        for(int p = 0; p <= maxBoundOrder; p++){ // iterate over derivatives (p=0 means positions, p=1 means velocities)
-                            // create the constraint
-                            for(int i = p; i <= n; i++){  // iterate over degrees of polynomial segment
-                                A_ind = i + flat_ind*(n+1)*m + con*numVars;
-                                A[A_ind] = pow(time[ti],i-p)*fact(i)/fact(i-p);
-                            }
-                            lbA[con] = bounds[p](0,flat_ind); // initial conditions for p-th derivative
-                            ubA[con] = lbA[con];
-                            con += 1;
-                        }
-                    }
-                } else if(ti == m){ // final time
-                    // Fix final positions/yaw and velocities
-                    for(int flat_ind = 0; flat_ind <= numFlatOut-1; flat_ind++){ // iterate over x,y,z,yaw
-                        for(int p = 0; p <= maxBoundOrder; p++){ // iterate over derivatives (p=0 means positions, p=1 means velocities)
-                            // create the constraint
-                            for(int i = p; i <= n; i++){  // iterate over degrees of polynomial segment
-                                A_ind = (ti-1)*(n+1) + i + flat_ind*(n+1)*m + con*numVars;
-                                A[A_ind] = pow(time[ti],i-p)*fact(i)/fact(i-p);
-                            }
-                            lbA[con] = bounds[p](1,flat_ind); // final conditions for p-th derivative
-                            ubA[con] = lbA[con];
-                            con += 1;
-                        }
-                    }
-                } else { // other times
-                    // Enforce continuity of the first k_r derivates of position
-                    //  and the first k_yaw derivates of yaw
-                    for(int flat_ind = 0; flat_ind <= numFlatOut-1; flat_ind++){ // iterate over x,y,z,yaw
-                        for(int p = 0; p <= k[flat_ind]; p++){ // p = 0 means continuity of 0-th derivative
-                            // create the constraint
-                            for(int i = p; i <= n; i++){  // iterate over degrees of polynomial segment
-                                A_ind_seg1 = (ti-1)*(n+1) + i + flat_ind*(n+1)*m + con*numVars;
-                                A_ind_seg2 =     ti*(n+1) + i + flat_ind*(n+1)*m + con*numVars;
-                                A[A_ind_seg1] = pow(time[ti],i-p)*fact(i)/fact(i-p);
-                                A[A_ind_seg2] = -A[A_ind_seg1];
-                            }
-                            lbA[con] = 0.0;
-                            ubA[con] = 0.0;
-                            con += 1;
-                        }
-                    }
-                }
-            }
-            
-            //*
-            // Waypoint/Keyframe constraints (separate from boundary conditions)
-            for(int key_ind = 0; key_ind <= numKeyCons-1; key_ind++){ // iterate over x,y,z,yaw
-                // create the constraint
-                int flat_ind = keys[key_ind].flat_ind;
-                int ti = keys[key_ind].t_ind;
-                for(int i = 0; i <= n; i++){  // iterate over degrees of polynomial segment
-                    A_ind = i + flat_ind*(n+1)*m + con*numVars;
-                    A[A_ind] = pow(time[ti],i);
-                }
-                lbA[con] = keys[key_ind].value; // initial conditions for p-th derivative
-                ubA[con] = lbA[con];
-                con += 1;
-            }
-            
-            // FOV ax,ay,az constraints (with slack variables)
-            if (do_fov_constraint){
-                // Interpolate theta from initial time to final time
-                double x0 = bounds[0](0,0); double xm = bounds[0](1,0);
-                double y0 = bounds[0](0,1); double ym = bounds[0](1,1);
-                double z0 = bounds[0](0,2); double zm = bounds[0](1,2);
-                double theta_x0 = atan2(l[0] - x0, z0 - l[2]); // initial theta for ax az constraint
-                double theta_xm = atan2(l[0] - xm, zm - l[2]); // final theta for ax az constraint
-                double theta_y0 = atan2(l[1] - y0, z0 - l[2]); // initial theta for ay az constraint
-                double theta_ym = atan2(l[1] - ym, zm - l[2]); // final theta for ay az constraint
-                
-                vector<double> FOVtime = linspace(time[0], time.back(), numFOVtimes); // times to enforce FOV constraint
-                vector<double> Theta_x = linspace(theta_x0, theta_xm, numFOVtimes);   // interpolation
-                vector<double> Theta_y = linspace(theta_y0, theta_ym, numFOVtimes);
-                
-                // Define FOV in radians
-                double alpha = min(alpha_x, alpha_y);
-                // Check FOV constraint satisfied at initial and final times
-                bool theta_x_BC_FOV = ( (alpha_x - abs(theta_x0) > 1e-3) && (alpha_x - abs(theta_xm) > 1e-3) );
-                bool theta_y_BC_FOV = ( (alpha_y - abs(theta_y0) > 1e-3) && (alpha_y - abs(theta_ym) > 1e-3) );
-                assert(theta_x_BC_FOV && theta_y_BC_FOV);
-                
-                double tanx, tany;
-                double grav = 9.81;
-                int p = 2;      // constraint is on acceleration
-                int flat_ind_x = 0;
-                int flat_ind_y = 1;
-                int flat_ind_z = 2;
-                int A_ind_x, A_ind_y, A_ind_z; 
-                int A_ind_ax, A_ind_ay, A_ind_az;
-                int A_ind_slack_x, A_ind_slack_y;
-                double pos_coeff, acc_coeff;
-                vector<int> seg_ind = polySegmentInds(FOVtime); // get vector of segment indices, given vecotr of times
-
-                // Satisfying the FOV constraint requires a position and acceleration constraints
-                for(int ti = 1; ti <= numFOVtimes - 2; ti++){
-                    //*
-                    // Position constraints
-                    for(int ang_ind = 0; ang_ind <= posConSides - 1; ang_ind++){ // iterate over approx position constraint cone
-                        // create position cone constraint
-                        double cos_term = cos((double)(2.0*M_PI*ang_ind)/(double)posConSides);
-                        double sin_term = sin((double)(2.0*M_PI*ang_ind)/(double)posConSides);
-                        for(int i = 0; i <= n; i++){  // iterate over degrees of polynomial segment
-                            A_ind_x = seg_ind[ti]*(n+1) + i + flat_ind_x*(n+1)*m + con*numVars;
-                            A_ind_y = seg_ind[ti]*(n+1) + i + flat_ind_y*(n+1)*m + con*numVars;
-                            A_ind_z = seg_ind[ti]*(n+1) + i + flat_ind_z*(n+1)*m + con*numVars;
-                            pos_coeff = pow(FOVtime[ti],i);
-                            A[A_ind_x] = cos_term*atan(alpha)*pos_coeff;
-                            A[A_ind_y] = sin_term*atan(alpha)*pos_coeff;
-                            A[A_ind_z] = pos_coeff;
-                        }
-                        lbA[con] = l[2] + atan(alpha)*(l[0]*cos_term +l[1]*sin_term);
-                        ubA[con] = INFINITY;
-                        con += 1;
-                    }
-                    // create position constraint to agree with Theta_x values
-                    for(int i = 0; i <= n; i++){  // iterate over degrees of polynomial segment
-                        A_ind_x = seg_ind[ti]*(n+1) + i + flat_ind_x*(n+1)*m + con*numVars;
-                        A_ind_z = seg_ind[ti]*(n+1) + i + flat_ind_z*(n+1)*m + con*numVars;
-                        pos_coeff = pow(FOVtime[ti],i);
-                        A[A_ind_x] = pos_coeff;
-                        A[A_ind_z] = tan(Theta_x[ti])*pos_coeff;
-                    }
-                    lbA[con] = l[2]*tan(Theta_x[ti]) + l[0] - 0.25;
-                    ubA[con] = l[2]*tan(Theta_x[ti]) + l[0] + 0.25;
-                    con += 1;
-                    // create position constraint to agree with Theta_y values
-                    for(int i = 0; i <= n; i++){  // iterate over degrees of polynomial segment
-                        A_ind_y = seg_ind[ti]*(n+1) + i + flat_ind_y*(n+1)*m + con*numVars;
-                        A_ind_z = seg_ind[ti]*(n+1) + i + flat_ind_z*(n+1)*m + con*numVars;
-                        pos_coeff = pow(FOVtime[ti],i);
-                        A[A_ind_y] = pos_coeff;
-                        A[A_ind_z] = tan(Theta_y[ti])*pos_coeff;
-                    }
-                    lbA[con] = l[2]*tan(Theta_y[ti]) + l[1] - 0.25;
-                    ubA[con] = l[2]*tan(Theta_y[ti]) + l[1] + 0.25;
-                    con += 1;
-                    //*/
-                    
-                    // Acceleration constraints
-                    tanx = tan(alpha_x - abs(Theta_x[ti]));
-                    tany = tan(alpha_y - abs(Theta_y[ti]));
-                    // create first ax az constraint
-                    for(int i = p; i <= n; i++){  // iterate over degrees of polynomial segment
-                        A_ind_ax = seg_ind[ti]*(n+1) + i + flat_ind_x*(n+1)*m + con*numVars;
-                        A_ind_az = seg_ind[ti]*(n+1) + i + flat_ind_z*(n+1)*m + con*numVars;
-                        acc_coeff = pow(FOVtime[ti],i-p)*fact(i)/fact(i-p);
-                        A[A_ind_ax] = acc_coeff;
-                        A[A_ind_az] = -acc_coeff*tanx;
-                    }
-                    A_ind_slack_x = (con + 1)*numVars - 2;
-                    A[A_ind_slack_x] = -1;
-                    lbA[con] = -1.0e4;
-                    ubA[con] = grav * tanx;
-                    con += 1;
-                    
-                    // create second ax az constraint
-                    for(int i = p; i <= n; i++){  // iterate over degrees of polynomial segment
-                        A_ind_ax = seg_ind[ti]*(n+1) + i + flat_ind_x*(n+1)*m + con*numVars;
-                        A_ind_az = seg_ind[ti]*(n+1) + i + flat_ind_z*(n+1)*m + con*numVars;
-                        acc_coeff = pow(FOVtime[ti],i-p)*fact(i)/fact(i-p);
-                        A[A_ind_ax] = -acc_coeff;
-                        A[A_ind_az] = -acc_coeff*tanx;
-                    }
-                    A_ind_slack_x = (con + 1)*numVars - 2;
-                    A[A_ind_slack_x] = -1;
-                    lbA[con] = -1.0e4;
-                    ubA[con] = grav * tanx;
-                    con += 1;
-                    
-                    // create first ay az constraint
-                    for(int i = p; i <= n; i++){  // iterate over degrees of polynomial segment
-                        A_ind_ay = seg_ind[ti]*(n+1) + i + flat_ind_y*(n+1)*m + con*numVars;
-                        A_ind_az = seg_ind[ti]*(n+1) + i + flat_ind_z*(n+1)*m + con*numVars;
-                        acc_coeff = pow(FOVtime[ti],i-p)*fact(i)/fact(i-p);
-                        A[A_ind_ay] = acc_coeff;
-                        A[A_ind_az] = -acc_coeff*tany;
-                    }
-                    A_ind_slack_y = (con + 1)*numVars - 1;
-                    A[A_ind_slack_y] = -1;
-                    lbA[con] = -1.0e4;
-                    ubA[con] = grav * tany;
-                    con += 1;
-                    
-                    // create second ay az constraint
-                    for(int i = p; i <= n; i++){  // iterate over degrees of polynomial segment
-                        A_ind_ay = seg_ind[ti]*(n+1) + i + flat_ind_y*(n+1)*m + con*numVars;
-                        A_ind_az = seg_ind[ti]*(n+1) + i + flat_ind_z*(n+1)*m + con*numVars;
-                        acc_coeff = pow(FOVtime[ti],i-p)*fact(i)/fact(i-p);
-                        A[A_ind_ay] = -acc_coeff;
-                        A[A_ind_az] = -acc_coeff*tany;
-                    }
-                    A_ind_slack_y = (con + 1)*numVars - 1;
-                    A[A_ind_slack_y] = -1;
-                    lbA[con] = -1.0e4;
-                    ubA[con] = grav * tany;
-                    con += 1;
-                }
-            }
-            //*/
-            
-            // TODO: height constraint
+            buildConstraints();
               
 // -------- Solve the QP -------- //
             // QP problem setup
             double* nullP = NULL;               // null pointer for lb and ub
-            int nWSR = 1000;                     //  maximum number of working set recalculations to be performed during the initial homotopy
+            int nWSR = 10000;                     //  maximum number of working set recalculations to be performed during the initial homotopy
             
             qpOASES::QProblem testQP(numVars, numCons, qpOASES::HST_SEMIDEF);     // specify QP params (H is semidefinite)
             testQP.setPrintLevel(qpOASES::PL_LOW);                       // Just print errors
             
+//             qpOASES::Options options;
+//             options.setToReliable();
+//             testQP.setOptions(options);
+            
             // Solve the QP and get the solution
             qpOASES::returnValue status = testQP.init(H, g, A, nullP, nullP, lbA, ubA, nWSR); // lb, ub set to null pointers
-            double* cOpt = new double[numVars];
+            cOpt = new double[numVars];
             testQP.getPrimalSolution(cOpt);
             
             // Print stuff
-            assert(con == numCons);
             cout << endl << "Number of constraints: " << numCons << endl;
             cout << "Number of decision variables: " << numVars << endl;
 
@@ -453,17 +137,24 @@ class MinSnapTraj {
             cout << "Optimal coefficients (one row per time segment): " << endl;
             printVectorOfVectors(sol.coeffs, 2);
             
-            cout << "Slack variables: " << cOpt[numVars - 2] << " " << cOpt[numVars - 1] << endl;
-            
-            // Manually clear memory
-            delete[] H;
-            delete[] A;
-            delete[] lbA;
-            delete[] ubA;
-            delete[] g;
-            delete[] cOpt;
+            if(do_fov_constraint){
+                cout << "Slack variables: " << cOpt[numVars - 2] << " " << cOpt[numVars - 1] << endl;
+            }
             
             return sol;
+        }
+        
+        void updateBounds(vectOfMatrix24d& bounds_new) {
+            bounds = bounds_new;
+        }
+        
+        void deleteQpData() {
+            delete[] H;
+            delete[] A;
+            delete[] g;
+            delete[] lbA;
+            delete[] ubA;
+            delete[] cOpt;
         }
         
         //  Input: coeffs output by solveTrajectory (i.e. rows correspond to polynomial segments), and a vector of times tspan
@@ -607,7 +298,343 @@ class MinSnapTraj {
         vector<double> l;           // landmark 3D position
         double alpha_x;             // half of horizontal FOV (radians)
         double alpha_y;             // half of vertical FOV (radians)
-        bool do_fov_constraint;     // true if doing fov constraint, flase otherwise
+        bool do_fov_constraint;     // true if doing fov constraint, false otherwise
+        
+        int k_r = 4;       // order of polynomial for position
+        int k_yaw = 2;     // order of polynomial for yaw
+
+        // Variables for use by qpOases
+        double* H;
+        double* A;
+        double* lbA;
+        double* ubA;
+        double* g;
+        double* cOpt;
+        
+        double* buildHessian() {
+            // -------- Hessian: Build H matrix -------- //
+            
+            // NOTE: The decision variable c used to solve the QP has the following form:
+            // c = [x_{0,0}, x_{1,0}, ..., x_{n,0}, x_{0,1}, x_{1,1}, ..., x_{n,1}, . . ., x_{n,m-1}, y_{0,0}, y_{1,0}, . . .],
+            // where x_{i,j} is the x coefficient of order i, at time index j.
+            // The array c is "ordered by state" meaning x comes first, then y, z, yaw.
+            
+            // Specify the trajectory is min snap (minimize 4-th (i.e. k_r-th) derivative of r)
+            assert(k_r <= n && k_yaw <= 2);
+            vector<int> k = {k_r, k_r, k_r, k_yaw}; // store for later use
+            
+            // Init some variables
+            double factorial_term;
+            double index_term;
+            double integral_term;
+            int H_ind;
+            
+            // Init some matrices
+            Eigen::MatrixXd H_min_snap(numVars, numVars);
+            Eigen::MatrixXd H_min_z(numVars, numVars);
+            H_min_snap = Eigen::MatrixXd::Zero(numVars, numVars);
+            H_min_z = Eigen::MatrixXd::Zero(numVars, numVars);
+            Eigen::MatrixXd H_block(n+1, n+1);
+            Eigen::MatrixXd zero_block = Eigen::MatrixXd::Zero(n+1, n+1);
+            
+            // Load data into H_min_snap and H_min_z
+            for(int ti = 0; ti <= m-1; ti++){                           // iterate over time intervals
+                // Minimize Snap
+                for(int flat_ind = 0; flat_ind <= numFlatOut-1; flat_ind++){    // iterate over x,y,z,yaw
+                    // Store current block matrix for given flat output (x, y ...)
+                    H_block = zero_block;
+                    for(int i = k[flat_ind]; i <= n; i++){                  // iterate over degrees
+                        for(int j = k[flat_ind]; j <= n; j++){
+                            factorial_term = fact(i)*fact(j)/(fact(i-k[flat_ind])*fact(j-k[flat_ind]));
+                            index_term = (double)(i+j-2*k[flat_ind]+1);
+                            integral_term = (1/index_term)*(pow(time[ti+1],index_term) - pow(time[ti],index_term));
+                            if (i == j){
+                                H_block(i,j) = factorial_term*integral_term;
+                            } else {
+                                H_block(i,j) = factorial_term*0.5*integral_term;
+                            }
+                            
+                        }
+                    }
+                    H_ind = ti*(n+1) + flat_ind*m*(n+1);
+                    H_min_snap.block(H_ind, H_ind, n+1, n+1) = H_block;
+                    //cout << "H_block: " << endl
+                    //    << H_block << endl << endl;
+                }
+                
+                // Minimize z (flat_ind = 2)
+                if(do_fov_constraint){
+                    H_block = zero_block;
+                    for(int i = 0; i <= n; i++){ // iterate over degrees
+                        for(int j = 0; j <= n; j++){
+                            index_term = (double)(i+j+1);
+                            integral_term = (1/index_term)*(pow(time[ti+1],index_term) - pow(time[ti],index_term));
+                            if (i == j){
+                                H_block(i,j) = integral_term;
+                            } else {
+                                H_block(i,j) = 0.5*integral_term;
+                            }
+                            
+                        }
+                    }
+                    H_ind = ti*(n+1) + 2*m*(n+1);
+                    H_min_z.block(H_ind, H_ind, n+1, n+1) = H_block;
+                }
+            }
+            
+            // Convert from Eigen matrix to array that can be used by qpOASES
+            Eigen::MatrixXd H_eig(numVars, numVars);
+            double min_z_weight = 8.0;
+            H_eig = H_min_snap + min_z_weight*H_min_z;
+            H = matrixToArray(H_eig);
+            return H;
+        }
+        
+        void buildConstraints() {
+            // -------- Constraints: Load A, lbA and ubA -------- //
+            
+            // Constraint types:
+            // - pos/vel boundary consitions
+            // - enforced continuity b/w time intervals
+            // - keyframes/waypoints
+            // - camera FOV constraints
+            
+            int maxBoundOrder = bounds.size() - 1; // 0 if only position boundary condition (BC), 2 if up to acceleration BC, for example
+            int numFOVtimes;
+            if (do_fov_constraint){
+                numFOVtimes = 8;  // (>= 2) number of time instants to enforce FOV constraint (use 4 (resp. 8) when theta values are fixed (resp. have +-0.25 constraint relaxation))
+            } else {
+                numFOVtimes = 2;  // setting to 2 is same as no fov constraints, becaues the initial and final conditions are already fixed
+            }
+            
+            int posConSides = 8;    // number of sides of cone in position constraint
+            
+            int numBoundCons = numFlatOut*(maxBoundOrder+1)*2;                  // number of boundary condition constraints
+            int numContCons  = (numFlatOut-1)*(m-1)*(k_r+1) + (m-1)*(k_yaw+1);  // number of "enforced continuity b/w time interval" constraints
+            int numKeyCons   = keys.size();                                     // number of keyframe/waypoint constraints (not including boundary conditions)
+            int numFovCons   = 4*(numFOVtimes - 2);                             // number of field-of-view (FOV) constraints
+            int numPosCons   = (posConSides + 2)*(numFOVtimes - 2);             // number of position constraints
+            numCons = numBoundCons + numContCons + numKeyCons + numFovCons + numPosCons;
+            
+            A = new double[numCons*numVars] ();
+            lbA = new double[numCons] ();
+            ubA = new double[numCons] ();
+            vector<int> k = {k_r, k_r, k_r, k_yaw};
+            
+            int con = 0; // current constraint index
+            int A_ind, A_ind_seg1, A_ind_seg2;   // 1-D array indices of constraint matrix A
+            for(int ti = 0; ti <= m; ti++){      // iterate over time points
+                if(ti == 0){ // initial time
+                    // Fix initial positions/yaw and velocities
+                    for(int flat_ind = 0; flat_ind <= numFlatOut-1; flat_ind++){ // iterate over x,y,z,yaw
+                        for(int p = 0; p <= maxBoundOrder; p++){ // iterate over derivatives (p=0 means positions, p=1 means velocities)
+                            // create the constraint
+                            for(int i = p; i <= n; i++){  // iterate over degrees of polynomial segment
+                                A_ind = i + flat_ind*(n+1)*m + con*numVars;
+                                A[A_ind] = pow(time[ti],i-p)*fact(i)/fact(i-p);
+                            }
+                            lbA[con] = bounds[p](0,flat_ind); // initial conditions for p-th derivative
+                            ubA[con] = lbA[con];
+                            con += 1;
+                        }
+                    }
+                } else if(ti == m){ // final time
+                    // Fix final positions/yaw and velocities
+                    for(int flat_ind = 0; flat_ind <= numFlatOut-1; flat_ind++){ // iterate over x,y,z,yaw
+                        for(int p = 0; p <= maxBoundOrder; p++){ // iterate over derivatives (p=0 means positions, p=1 means velocities)
+                            // create the constraint
+                            for(int i = p; i <= n; i++){  // iterate over degrees of polynomial segment
+                                A_ind = (ti-1)*(n+1) + i + flat_ind*(n+1)*m + con*numVars;
+                                A[A_ind] = pow(time[ti],i-p)*fact(i)/fact(i-p);
+                            }
+                            lbA[con] = bounds[p](1,flat_ind); // final conditions for p-th derivative
+                            ubA[con] = lbA[con];
+                            con += 1;
+                        }
+                    }
+                } else { // other times
+                    // Enforce continuity of the first k_r derivates of position
+                    //  and the first k_yaw derivates of yaw
+                    for(int flat_ind = 0; flat_ind <= numFlatOut-1; flat_ind++){ // iterate over x,y,z,yaw
+                        for(int p = 0; p <= k[flat_ind]; p++){ // p = 0 means continuity of 0-th derivative
+                            // create the constraint
+                            for(int i = p; i <= n; i++){  // iterate over degrees of polynomial segment
+                                A_ind_seg1 = (ti-1)*(n+1) + i + flat_ind*(n+1)*m + con*numVars;
+                                A_ind_seg2 =     ti*(n+1) + i + flat_ind*(n+1)*m + con*numVars;
+                                A[A_ind_seg1] = pow(time[ti],i-p)*fact(i)/fact(i-p);
+                                A[A_ind_seg2] = -A[A_ind_seg1];
+                            }
+                            lbA[con] = 0.0;
+                            ubA[con] = 0.0;
+                            con += 1;
+                        }
+                    }
+                }
+            }
+            
+            // Waypoint/Keyframe constraints (separate from boundary conditions)
+            for(int key_ind = 0; key_ind <= numKeyCons-1; key_ind++){ // iterate over x,y,z,yaw
+                // create the constraint
+                int flat_ind = keys[key_ind].flat_ind;
+                int ti = keys[key_ind].t_ind;
+                for(int i = 0; i <= n; i++){  // iterate over degrees of polynomial segment
+                    A_ind = (ti-1)*(n+1) + i + flat_ind*(n+1)*m + con*numVars;
+                    A[A_ind] = pow(time[ti],i);
+                }
+                lbA[con] = keys[key_ind].value;
+                ubA[con] = lbA[con];
+                con += 1;
+            }
+                        
+            // FOV ax,ay,az constraints (with slack variables)
+            if (do_fov_constraint){
+                // Interpolate theta from initial time to final time
+                double x0 = bounds[0](0,0); double xm = bounds[0](1,0);
+                double y0 = bounds[0](0,1); double ym = bounds[0](1,1);
+                double z0 = bounds[0](0,2); double zm = bounds[0](1,2);
+                double theta_x0 = atan2(l[0] - x0, z0 - l[2]); // initial theta for ax az constraint
+                double theta_xm = atan2(l[0] - xm, zm - l[2]); // final theta for ax az constraint
+                double theta_y0 = atan2(l[1] - y0, z0 - l[2]); // initial theta for ay az constraint
+                double theta_ym = atan2(l[1] - ym, zm - l[2]); // final theta for ay az constraint
+                
+                vector<double> FOVtime = linspace(time[0], time.back(), numFOVtimes); // times to enforce FOV constraint
+                vector<double> Theta_x = linspace(theta_x0, theta_xm, numFOVtimes);   // interpolation
+                vector<double> Theta_y = linspace(theta_y0, theta_ym, numFOVtimes);
+                
+                // Define FOV in radians
+                double alpha = min(alpha_x, alpha_y);
+                // Check FOV constraint satisfied at initial and final times
+                bool theta_x_BC_FOV = ( (alpha_x - abs(theta_x0) > 1e-3) && (alpha_x - abs(theta_xm) > 1e-3) );
+                bool theta_y_BC_FOV = ( (alpha_y - abs(theta_y0) > 1e-3) && (alpha_y - abs(theta_ym) > 1e-3) );
+                assert(theta_x_BC_FOV && theta_y_BC_FOV);
+                
+                double tanx, tany;
+                double grav = 9.81;
+                int p = 2;      // constraint is on acceleration
+                int flat_ind_x = 0;
+                int flat_ind_y = 1;
+                int flat_ind_z = 2;
+                int A_ind_x, A_ind_y, A_ind_z; 
+                int A_ind_ax, A_ind_ay, A_ind_az;
+                int A_ind_slack_x, A_ind_slack_y;
+                double pos_coeff, acc_coeff;
+                vector<int> seg_ind = polySegmentInds(FOVtime); // get vector of segment indices, given vecotr of times
+
+                // Satisfying the FOV constraint requires a position and acceleration constraints
+                for(int ti = 1; ti <= numFOVtimes - 2; ti++){
+                    // Position constraints
+                    for(int ang_ind = 0; ang_ind <= posConSides - 1; ang_ind++){ // iterate over approx position constraint cone
+                        // create position cone constraint
+                        double cos_term = cos((double)(2.0*M_PI*ang_ind)/(double)posConSides);
+                        double sin_term = sin((double)(2.0*M_PI*ang_ind)/(double)posConSides);
+                        for(int i = 0; i <= n; i++){  // iterate over degrees of polynomial segment
+                            A_ind_x = seg_ind[ti]*(n+1) + i + flat_ind_x*(n+1)*m + con*numVars;
+                            A_ind_y = seg_ind[ti]*(n+1) + i + flat_ind_y*(n+1)*m + con*numVars;
+                            A_ind_z = seg_ind[ti]*(n+1) + i + flat_ind_z*(n+1)*m + con*numVars;
+                            pos_coeff = pow(FOVtime[ti],i);
+                            A[A_ind_x] = cos_term*atan(alpha)*pos_coeff;
+                            A[A_ind_y] = sin_term*atan(alpha)*pos_coeff;
+                            A[A_ind_z] = pos_coeff;
+                        }
+                        lbA[con] = l[2] + atan(alpha)*(l[0]*cos_term + l[1]*sin_term);
+                        ubA[con] = INFINITY;
+                        con += 1;
+                    }
+                    // create position constraint to agree with Theta_x values
+                    for(int i = 0; i <= n; i++){  // iterate over degrees of polynomial segment
+                        A_ind_x = seg_ind[ti]*(n+1) + i + flat_ind_x*(n+1)*m + con*numVars;
+                        A_ind_z = seg_ind[ti]*(n+1) + i + flat_ind_z*(n+1)*m + con*numVars;
+                        pos_coeff = pow(FOVtime[ti],i);
+                        A[A_ind_x] = pos_coeff;
+                        A[A_ind_z] = tan(Theta_x[ti])*pos_coeff;
+                    }
+                    lbA[con] = l[2]*tan(Theta_x[ti]) + l[0] - 0.25;
+                    ubA[con] = l[2]*tan(Theta_x[ti]) + l[0] + 0.25;
+                    con += 1;
+                    // create position constraint to agree with Theta_y values
+                    for(int i = 0; i <= n; i++){  // iterate over degrees of polynomial segment
+                        A_ind_y = seg_ind[ti]*(n+1) + i + flat_ind_y*(n+1)*m + con*numVars;
+                        A_ind_z = seg_ind[ti]*(n+1) + i + flat_ind_z*(n+1)*m + con*numVars;
+                        pos_coeff = pow(FOVtime[ti],i);
+                        A[A_ind_y] = pos_coeff;
+                        A[A_ind_z] = tan(Theta_y[ti])*pos_coeff;
+                    }
+                    lbA[con] = l[2]*tan(Theta_y[ti]) + l[1] - 0.25;
+                    ubA[con] = l[2]*tan(Theta_y[ti]) + l[1] + 0.25;
+                    con += 1;
+                    //*/
+                    
+                    // Acceleration constraints
+                    tanx = tan(alpha_x - abs(Theta_x[ti]));
+                    tany = tan(alpha_y - abs(Theta_y[ti]));
+                    // create first ax az constraint
+                    for(int i = p; i <= n; i++){  // iterate over degrees of polynomial segment
+                        A_ind_ax = seg_ind[ti]*(n+1) + i + flat_ind_x*(n+1)*m + con*numVars;
+                        A_ind_az = seg_ind[ti]*(n+1) + i + flat_ind_z*(n+1)*m + con*numVars;
+                        acc_coeff = pow(FOVtime[ti],i-p)*fact(i)/fact(i-p);
+                        A[A_ind_ax] = acc_coeff;
+                        A[A_ind_az] = -acc_coeff*tanx;
+                    }
+                    A_ind_slack_x = (con + 1)*numVars - 2;
+                    A[A_ind_slack_x] = -1;
+                    lbA[con] = -1.0e4;
+                    ubA[con] = grav * tanx;
+                    con += 1;
+                    
+                    // create second ax az constraint
+                    for(int i = p; i <= n; i++){  // iterate over degrees of polynomial segment
+                        A_ind_ax = seg_ind[ti]*(n+1) + i + flat_ind_x*(n+1)*m + con*numVars;
+                        A_ind_az = seg_ind[ti]*(n+1) + i + flat_ind_z*(n+1)*m + con*numVars;
+                        acc_coeff = pow(FOVtime[ti],i-p)*fact(i)/fact(i-p);
+                        A[A_ind_ax] = -acc_coeff;
+                        A[A_ind_az] = -acc_coeff*tanx;
+                    }
+                    A_ind_slack_x = (con + 1)*numVars - 2;
+                    A[A_ind_slack_x] = -1;
+                    lbA[con] = -1.0e4;
+                    ubA[con] = grav * tanx;
+                    con += 1;
+                    
+                    // create first ay az constraint
+                    for(int i = p; i <= n; i++){  // iterate over degrees of polynomial segment
+                        A_ind_ay = seg_ind[ti]*(n+1) + i + flat_ind_y*(n+1)*m + con*numVars;
+                        A_ind_az = seg_ind[ti]*(n+1) + i + flat_ind_z*(n+1)*m + con*numVars;
+                        acc_coeff = pow(FOVtime[ti],i-p)*fact(i)/fact(i-p);
+                        A[A_ind_ay] = acc_coeff;
+                        A[A_ind_az] = -acc_coeff*tany;
+                    }
+                    A_ind_slack_y = (con + 1)*numVars - 1;
+                    A[A_ind_slack_y] = -1;
+                    lbA[con] = -1.0e4;
+                    ubA[con] = grav * tany;
+                    con += 1;
+                    
+                    // create second ay az constraint
+                    for(int i = p; i <= n; i++){  // iterate over degrees of polynomial segment
+                        A_ind_ay = seg_ind[ti]*(n+1) + i + flat_ind_y*(n+1)*m + con*numVars;
+                        A_ind_az = seg_ind[ti]*(n+1) + i + flat_ind_z*(n+1)*m + con*numVars;
+                        acc_coeff = pow(FOVtime[ti],i-p)*fact(i)/fact(i-p);
+                        A[A_ind_ay] = -acc_coeff;
+                        A[A_ind_az] = -acc_coeff*tany;
+                    }
+                    A_ind_slack_y = (con + 1)*numVars - 1;
+                    A[A_ind_slack_y] = -1;
+                    lbA[con] = -1.0e4;
+                    ubA[con] = grav * tany;
+                    con += 1;
+                }
+            }
+        }
+        
+        double* buildGvector() {
+            // -------- Graident Vector: Build g vector -------- //
+            g = new double[numVars] (); // set g to zeros
+            if(do_fov_constraint){
+                g[numVars - 2] = 9000; // slack variable weight for ax az constraints
+                g[numVars - 1] = 9000; // slack variable weight for ay az constraints
+            }
+            return g;
+        }
         
         // Factorial function
         double fact(int i){
@@ -681,19 +708,3 @@ class MinSnapTraj {
 };
 
 #endif // MIN_SNAP_TRAJ_H_INCLUDED
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

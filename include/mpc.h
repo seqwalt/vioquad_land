@@ -99,8 +99,8 @@ class MPC {
 
         bool initRefCallback(quad_control::InitSetpoint::Request &req, quad_control::InitSetpoint::Response &res){
             res.success = true;
-            res.position.x = -0.1;
-            res.position.y = -0.1;
+            res.position.x = -1.0;
+            res.position.y = -1.0;
             res.position.z = 2.5;
             res.yaw = 0.0;
             ROS_INFO_STREAM("Initial MPC pose sent.");
@@ -275,7 +275,7 @@ class MPC {
             
             // generate and store trajectory
             numIntersampleTimes = 10;
-            traj = genTraj(numIntersampleTimes); // generate trajectory. each row has t, x, y, z, vx, vy, vz, qw, qx, qy, qz
+            traj = genTrajInitial(numIntersampleTimes); // generate trajectory. each row has t, x, y, z, vx, vy, vz, qw, qx, qy, qz
             traj_time_step = traj(1,0) - traj(0,0);
             traj_num_times = traj.rows();
 
@@ -448,7 +448,7 @@ class MPC {
             cout << message << time_used.count()*1000. << " ms" << endl;
         }
 
-        Eigen::MatrixXd genTraj(int numIntersampleTimes){
+        Eigen::MatrixXd genTrajInitial(int numIntersampleTimes){
             // Parameters
             int order = 8;         // order of piecewise polynomials (must be >= 4 for min snap) (works well when order >= numFOVtimes)
             int numIntervals = 1;  // number of time intervals (must be >= 1) (setting to 1 is fine if not using keyframes, and only using FOV constraints)
@@ -458,7 +458,7 @@ class MPC {
             // ------------------ Position and velocity boundary conditions ------------------ //
             MinSnapTraj::Matrix24d p0_bounds; // p=0 means 0th derivative
             // pos/yaw:   x    y    z   yaw
-            p0_bounds << -0.1, -0.1, 2.5, 0.0, // initial
+            p0_bounds << -1.0, -1.0, 2.5, 0.0, // initial
                         0.0,  0.0, 0.25, 0.0; // final
 
             MinSnapTraj::Matrix24d p1_bounds; // p=1 means 1st derivative
@@ -482,7 +482,7 @@ class MPC {
             // ------------------ FOV data ------------------ //
             MinSnapTraj::FOVdata fov_data;
             fov_data.do_fov = true;
-            fov_data.l = vector<double> {0.0,0.0,0.0};  // 3D landmark to keep in FOV
+            fov_data.l = vector<double> {0.0,0.0,-0.3};  // 3D landmark to keep in FOV
             fov_data.alpha_x = M_PI/4;                  // half of horizontal fov (radians)
             fov_data.alpha_y = M_PI/4;                  // half of vertical fov (radians)
 

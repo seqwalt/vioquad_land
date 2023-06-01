@@ -122,6 +122,9 @@ set(DO_TESTS TRUE)
 if(DO_TESTS)
     add_executable(min_snap_test extra/tests/min_snap_traj_test.cpp)
     target_link_libraries(min_snap_test full_qpoases Eigen3::Eigen)
+    
+    add_executable(min_snap_test2 extra/tests/min_snap_traj_test2.cpp)
+    target_link_libraries(min_snap_test2 full_qpoases Eigen3::Eigen)
 endif()
 
 include_directories(include ${catkin_INCLUDE_DIRS})
