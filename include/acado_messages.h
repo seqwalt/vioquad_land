@@ -249,8 +249,6 @@ class ACADO_MSG {
 
 };
 
-    // ADDED by SW    
-
 // ADDED by SW
 // Print array as matrix
 // #include <cstdio>

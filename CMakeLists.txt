@@ -28,6 +28,7 @@ find_package(catkin REQUIRED COMPONENTS
   genmsg
   gencpp
   message_generation
+  apriltag_ros
 )
 
 find_package(Eigen3 3.3 REQUIRED NO_MODULE)

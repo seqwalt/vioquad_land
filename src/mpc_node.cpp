@@ -31,7 +31,11 @@ int main(int argc, char **argv)
             ("mavros/local_position/pose", 1, &MPC::mavPoseCallback, &mpc_ctrl, ros::TransportHints().tcpNoDelay());
     mpc_ctrl.vel_sub = nh.subscribe
             ("mavros/local_position/velocity_local", 1, &MPC::mavVelCallback, &mpc_ctrl, ros::TransportHints().tcpNoDelay());
-    
+    mpc_ctrl.imu_sub = nh.subscribe
+            ("mavros/imu/data_raw", 1, &MPC::mavIMUCallback, &mpc_ctrl, ros::TransportHints().tcpNoDelay());
+    mpc_ctrl.apriltag_sub = nh.subscribe
+            ("tag_detections", 1, &MPC::mavAprilTagCallback, &mpc_ctrl, ros::TransportHints().tcpNoDelay());
+            
     // Timer for publishing control inputs
     double mpc_freq = 50.0; // publish frequency in Hz
     bool autostart = false;

@@ -5,6 +5,8 @@
 #include <mavros/mavros.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/TwistStamped.h>
+#include <sensor_msgs/Imu.h>
+#include <apriltag_ros/AprilTagDetectionArray.h>
 #include <mavros_msgs/CommandBool.h>
 #include <mavros_msgs/CommandTOL.h>
 #include <mavros_msgs/SetMode.h>
@@ -69,6 +71,8 @@ class MPC {
         
         ros::Subscriber pose_sub;
         ros::Subscriber vel_sub;
+        ros::Subscriber imu_sub;
+        ros::Subscriber apriltag_sub;
         ros::Timer mpc_timer;
         ros::Timer path_timer;
 
@@ -243,19 +247,38 @@ class MPC {
             //cout << "mpcCallback time: " << te << "sec" << endl;
         }
 
-        // Pass along current mav pose data.
+        // Pass along current mav pose data, wrt world frame.
         void mavPoseCallback(const geometry_msgs::PoseStamped &msg) {
             curPose = msg.pose;
         }
 
-        // Pass along current mav velocity data.
+        // Pass along current mav velocity data, wrt world frame.
         void mavVelCallback(const geometry_msgs::TwistStamped &msg) {
             curVel = msg.twist.linear;
+        }
+        
+        // Pass along current raw mav imu data,wrt body frame.
+        void mavIMUCallback(const sensor_msgs::Imu &msg) {
+            curImuAcc = msg.linear_acceleration; // linear acceleration in imu body frame
+        }
+        
+        // Pass along AprilTag pose
+        void mavAprilTagCallback(const apriltag_ros::AprilTagDetectionArray &msg) {
+            geometry_msgs::Pose AprilTagPose_Cam = msg.detections[0].pose.pose.pose; // pose of AprilTag in camera frame
+            Eigen::Vector3d tran_AC(AprilTagPose_Cam.position.x, AprilTagPose_Cam.position.y, AprilTagPose_Cam.position.z); // translation part
+            Eigen::Quaterniond quat_AC(AprilTagPose_Cam.orientation.w, AprilTagPose_Cam.orientation.x, AprilTagPose_Cam.orientation.y, AprilTagPose_Cam.orientation.z); // rotation part (quaternion)
+            Eigen::Isometry3d T_AC = Eigen::Isometry3d::Identity();
+            T_AC.translate(tran_AC);
+            T_AC.rotate(quat_AC); // transformation matrix representing the AprilTag in the camera frame
+            Eigen::Isometry3d T_CA = T_AC.inverse();// pose of camera in AprilTag frame
+            // TODO: convert T_CA to geometry_msgs::Pose
         }
 
     private:
         geometry_msgs::Pose curPose;
         geometry_msgs::Vector3 curVel;
+        geometry_msgs::Vector3 curImuAcc;
+        geometry_msgs::Pose curAprilTagPose;
         mavros_msgs::AttitudeTarget mpcInputs;
         nav_msgs::Path mpcTotalRef;  // total reference
         nav_msgs::Path mpcCurrRef;  // current iteration reference
@@ -275,7 +298,7 @@ class MPC {
             
             // generate and store trajectory
             numIntersampleTimes = 10;
-            traj = genTrajInitial(numIntersampleTimes); // generate trajectory. each row has t, x, y, z, vx, vy, vz, qw, qx, qy, qz
+            traj = genLandingTraj(numIntersampleTimes); // generate trajectory. each row has t, x, y, z, vx, vy, vz, qw, qx, qy, qz
             traj_time_step = traj(1,0) - traj(0,0);
             traj_num_times = traj.rows();
 
@@ -448,27 +471,40 @@ class MPC {
             cout << message << time_used.count()*1000. << " ms" << endl;
         }
 
-        Eigen::MatrixXd genTrajInitial(int numIntersampleTimes){
+        // Generate a landing trajectory once the landing pad (AprilTag) is spotted
+        Eigen::MatrixXd genLandingTraj(int numIntersampleTimes){
             // Parameters
             int order = 8;         // order of piecewise polynomials (must be >= 4 for min snap) (works well when order >= numFOVtimes)
             int numIntervals = 1;  // number of time intervals (must be >= 1) (setting to 1 is fine if not using keyframes, and only using FOV constraints)
             double T = 4;        // 3.5 duration of trajectory in seconds (must be > 0.0)
             vector<double> times = MinSnapTraj::linspace(0.0, T, numIntervals + 1); // times for the polynomial segments
-
+            
+            // ------------------ Get acceleration in world frame ------------------ //
+            Eigen::Vector3d imuAcc(curImuAcc.x, curImuAcc.y, curImuAcc.z);  // convert acc from message to Eigen 3D vector
+            geometry_msgs::Quaternion curQuat = curPose.orientation;
+            Eigen::Quaterniond quadQuat(curQuat.w, curQuat.x, curQuat.y, curQuat.z);  // convert quadQuat from message to Eigen::Quateniond
+            Eigen::Vector3d accW = quadQuat * imuAcc;  // rotate imuAcc by quadQuat to get acc wrt world frame, using Eigen overloaded "*" syntax
+            
+            // ------------------ Get yaw from quaternion data ------------------ //
+            Eigen::Matrix3d quadRot = quadQuat.toRotationMatrix();
+            Eigen::Vector3d eulerAng = quadRot.eulerAngles(2,1,0); // ZYX order, ie yaw-pitch-roll order
+            double yaw = eulerAng[0];
+            
             // ------------------ Position and velocity boundary conditions ------------------ //
             MinSnapTraj::Matrix24d p0_bounds; // p=0 means 0th derivative
+            geometry_msgs::Point curPos = curPose.position;
             // pos/yaw:   x    y    z   yaw
-            p0_bounds << -1.0, -1.0, 2.5, 0.0, // initial
+            p0_bounds << curPos.x , curPos.y, curPos.z, yaw, // initial
                         0.0,  0.0, 0.25, 0.0; // final
 
             MinSnapTraj::Matrix24d p1_bounds; // p=1 means 1st derivative
             // velocity: vx   vy   vz   vyaw
-            p1_bounds << 0.0, 0.0, 0.0, 0.0, // initial
+            p1_bounds << curVel.x, curVel.y, curVel.z, 0.0, // initial
                         0.0, 0.0, 0.0, 0.0; // final
 
             MinSnapTraj::Matrix24d p2_bounds; // p=2 means 2nd derivative
-            // accel:    ax   ay   az   ayaw
-            p2_bounds << 0.0, 0.0, 0.0, 0.0, // initial
+            // accel:    ax         ay      az      ayaw
+            p2_bounds << accW[0], accW[1], accW[2], 0.0, // initial
                         0.0, 0.0, 0.0, 0.0; // final
 
             MinSnapTraj::vectOfMatrix24d BC;
@@ -571,7 +607,6 @@ class MPC {
             path.header.frame_id = "map";
             path.poses.push_back(pose_stamped);
         }
-
 };
 
 #endif // MPC_H_INCLUDED

@@ -1,5 +1,5 @@
 /**
- * @file min_snap_traj_test.cpp
+ * @file min_snap_traj_test2.cpp
  * @brief Test for minimum snap trajector generation with FOV constraints
  * @note executable located at .../vioquad_ws/devel/.private/quad_control/lib/quad_control
  */
@@ -107,7 +107,7 @@ int main(int argc, char **argv)
     
     double spd = 1; // rough speed estimate. units: m/s
     double dtHlines = xWid/spd;
-    double dtVlines = (yWid/(numHlines-1))/spd;
+    double dtVlines = 2.0*(yWid/(numHlines-1))/spd;
     
     double T = numHlines*dtHlines + (numHlines-1)*dtVlines;
     
