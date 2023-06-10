@@ -103,8 +103,8 @@ class MPC {
 
         bool initRefCallback(quad_control::InitSetpoint::Request &req, quad_control::InitSetpoint::Response &res){
             res.success = true;
-            res.position.x = -1.0;
-            res.position.y = -1.0;
+            res.position.x = -1.5;
+            res.position.y = -1.5;
             res.position.z = 2.5;
             res.yaw = 0.0;
             ROS_INFO_STREAM("Initial MPC pose sent.");
@@ -262,23 +262,47 @@ class MPC {
             curImuAcc = msg.linear_acceleration; // linear acceleration in imu body frame
         }
         
-        // Pass along AprilTag pose
+        // Compute quad pose in AprilTag frame. Input is AprilTag pose in camera frame
         void mavAprilTagCallback(const apriltag_ros::AprilTagDetectionArray &msg) {
-            geometry_msgs::Pose AprilTagPose_Cam = msg.detections[0].pose.pose.pose; // pose of AprilTag in camera frame
-            Eigen::Vector3d tran_AC(AprilTagPose_Cam.position.x, AprilTagPose_Cam.position.y, AprilTagPose_Cam.position.z); // translation part
-            Eigen::Quaterniond quat_AC(AprilTagPose_Cam.orientation.w, AprilTagPose_Cam.orientation.x, AprilTagPose_Cam.orientation.y, AprilTagPose_Cam.orientation.z); // rotation part (quaternion)
-            Eigen::Isometry3d T_AC = Eigen::Isometry3d::Identity();
-            T_AC.translate(tran_AC);
-            T_AC.rotate(quat_AC); // transformation matrix representing the AprilTag in the camera frame
-            Eigen::Isometry3d T_CA = T_AC.inverse();// pose of camera in AprilTag frame
-            // TODO: convert T_CA to geometry_msgs::Pose
+            tagVisible = !msg.detections.empty();
+            
+            // Check if tag is visible            
+            if (tagVisible){
+                //ROS_INFO_ONCE("AprilTag detected");
+                
+                // convert message to Eigen types
+                geometry_msgs::Pose AprilTagPose_Cam = msg.detections[0].pose.pose.pose; // pose of AprilTag in camera frame
+                Eigen::Vector3d tran_AC(AprilTagPose_Cam.position.x, AprilTagPose_Cam.position.y, AprilTagPose_Cam.position.z); // translation part
+                Eigen::Quaterniond quat_AC(AprilTagPose_Cam.orientation.w, AprilTagPose_Cam.orientation.x, AprilTagPose_Cam.orientation.y, AprilTagPose_Cam.orientation.z); // rotation part (quaternion)
+                Eigen::Isometry3d T_AC = Eigen::Isometry3d::Identity();
+                T_AC.translate(tran_AC);
+                T_AC.rotate(quat_AC); // transformation matrix representing the AprilTag in the camera frame
+                
+                // Invert transformation matrix
+                Eigen::Isometry3d T_CA = T_AC.inverse(); // pose of camera in AprilTag frame
+                Eigen::Vector3d tran_CA = T_CA.translation();
+                Eigen::Matrix3d rot_CA = T_CA.rotation();
+                Eigen::Vector4d quat_CA = Eigen::Quaterniond(rot_CA).coeffs();
+                
+                // Turn back into geometry_msgs type
+                curCamPose_wrtTag.position.x = tran_CA[0];
+                curCamPose_wrtTag.position.y = tran_CA[1];
+                curCamPose_wrtTag.position.z = tran_CA[2];
+                curCamPose_wrtTag.orientation.x = quat_CA[0];
+                curCamPose_wrtTag.orientation.y = quat_CA[1];
+                curCamPose_wrtTag.orientation.z = quat_CA[2];
+                curCamPose_wrtTag.orientation.w = quat_CA[3];
+            } else {
+                // No AprilTags detected
+                //ROS_INFO_ONCE("No AprilTag detected");
+            }
         }
 
     private:
         geometry_msgs::Pose curPose;
         geometry_msgs::Vector3 curVel;
         geometry_msgs::Vector3 curImuAcc;
-        geometry_msgs::Pose curAprilTagPose;
+        geometry_msgs::Pose curCamPose_wrtTag;
         mavros_msgs::AttitudeTarget mpcInputs;
         nav_msgs::Path mpcTotalRef;  // total reference
         nav_msgs::Path mpcCurrRef;  // current iteration reference
@@ -287,6 +311,7 @@ class MPC {
         int numIntersampleTimes;
         Eigen::MatrixXd traj;
         bool first_mpc_call;
+        bool tagVisible;  // visibility of AprilTag
         double start_time, duration; // in seconds
         double traj_time_step;
         int traj_num_times;
@@ -493,18 +518,23 @@ class MPC {
             // ------------------ Position and velocity boundary conditions ------------------ //
             MinSnapTraj::Matrix24d p0_bounds; // p=0 means 0th derivative
             geometry_msgs::Point curPos = curPose.position;
+            geometry_msgs::Point curCamPos = curCamPose_wrtTag.position;
             // pos/yaw:   x    y    z   yaw
-            p0_bounds << curPos.x , curPos.y, curPos.z, yaw, // initial
-                        0.0,  0.0, 0.25, 0.0; // final
+            // TODO: fix this UPPPPP
+            //p0_bounds << curCamPos.x , curCamPos.y, curCamPos.z, yaw, // initial
+            p0_bounds << -1.5, -1.5, 2.5, 0.0, // initial
+                         0.0,  0.0, 0.25, 0.0; // final
 
             MinSnapTraj::Matrix24d p1_bounds; // p=1 means 1st derivative
             // velocity: vx   vy   vz   vyaw
-            p1_bounds << curVel.x, curVel.y, curVel.z, 0.0, // initial
+            //p1_bounds << curVel.x, curVel.y, curVel.z, 0.0, // initial
+            p1_bounds << 0.0, 0.0, 0.0, 0.0, // initial
                         0.0, 0.0, 0.0, 0.0; // final
 
             MinSnapTraj::Matrix24d p2_bounds; // p=2 means 2nd derivative
             // accel:    ax         ay      az      ayaw
-            p2_bounds << accW[0], accW[1], accW[2], 0.0, // initial
+            //p2_bounds << accW[0], accW[1], accW[2], 0.0, // initial
+            p2_bounds << 0.0, 0.0, 0.0, 0.0, // initial
                         0.0, 0.0, 0.0, 0.0; // final
 
             MinSnapTraj::vectOfMatrix24d BC;
