@@ -30,7 +30,7 @@
 
     <!-- Trajectory node -->
     <node pkg="quad_control" name="trajectory_gen_node" type="trajectory_gen_node" output="screen">
-        <param name="trajectory_file" type="string" value="$(find quad_control)/traj/traj_$(arg trajectory).csv" />
+        <param name="trajectory_file" type="string" value="$(find quad_control)/extra/traj/traj_$(arg trajectory).csv" />
     </node>
 
 </launch>

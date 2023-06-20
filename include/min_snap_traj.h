@@ -43,6 +43,7 @@ class MinSnapTraj {
 
         // Constructor
         MinSnapTraj(int order, vector<double> time_in, vectOfMatrix24d& bounds_in, vector<keyframe> keys_in, FOVdata fov){
+            // constructor for solving a minsnap problem
             // Initialize
             assert(order >= 4);
             n = order;                    // polynomial order
@@ -384,7 +385,7 @@ class MinSnapTraj {
             
             // Convert from Eigen matrix to array that can be used by qpOASES
             Eigen::MatrixXd H_eig(numVars, numVars);
-            double min_z_weight = 8.0;
+            double min_z_weight = 8.0; // TODO 8 works well for weight
             H_eig = H_min_snap + min_z_weight*H_min_z;
             H = matrixToArray(H_eig);
             return H;
@@ -506,6 +507,22 @@ class MinSnapTraj {
                 // Check FOV constraint satisfied at initial and final times
                 bool theta_x_BC_FOV = ( (alpha_x - abs(theta_x0) > 1e-3) && (alpha_x - abs(theta_xm) > 1e-3) );
                 bool theta_y_BC_FOV = ( (alpha_y - abs(theta_y0) > 1e-3) && (alpha_y - abs(theta_ym) > 1e-3) );
+                
+                cout << "Position bounds: " << endl << bounds[0] << endl << endl;
+                cout << "Velocity bounds: " << endl << bounds[1] << endl << endl;
+                
+                cout << "AprilTag position est: " << l[0] << ", " << l[1] << ", " << l[2] << ", " << endl << endl;
+                
+                cout << "theta_x0 = " << theta_x0 << endl;
+                cout << "theta_y0 = " << theta_y0 << endl;
+                cout << "theta_xm = " << theta_xm << endl;
+                cout << "theta_ym = " << theta_ym << endl << endl;
+                
+                cout << "(alpha_x - abs(theta_x0) > 1e-3) = " << (alpha_x - abs(theta_x0) > 1e-3) << endl;
+                cout << "(alpha_x - abs(theta_xm) > 1e-3) = " << (alpha_x - abs(theta_xm) > 1e-3) << endl;
+                cout << "(alpha_y - abs(theta_y0) > 1e-3) = " << (alpha_y - abs(theta_y0) > 1e-3) << endl;
+                cout << "(alpha_y - abs(theta_ym) > 1e-3) = " << (alpha_y - abs(theta_ym) > 1e-3) << endl;
+                
                 assert(theta_x_BC_FOV && theta_y_BC_FOV);
                 
                 double tanx, tany;
@@ -690,6 +707,8 @@ class MinSnapTraj {
         }
         
         Eigen::Quaterniond acc2quaternion(const Eigen::Vector3d &vector_acc, double yaw) {
+            // Following ZYX ordering as in
+            // "Flatness-based Quadcopter Trajectory Planning and Tracking with Continuous-time Safety Guarantees" by Freire et al.
             Eigen::Quaterniond quat;
             Eigen::Vector3d zb_des, yb_des, xb_des, yc, grav;
             Eigen::Matrix3d rotmat;

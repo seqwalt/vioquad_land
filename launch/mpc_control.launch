@@ -4,6 +4,7 @@
     <arg name="simulation" default="false" />
     <arg name="cam_name" default="/pinhole_camera" />
     <arg name="img_topic" default="image_raw" />
+    <arg name="traj_name" default="horiz_search" />
 
     <!-- Controller node -->
     <node pkg="quad_control" name="mavros_cmd_node" type="mavros_cmd_node" output="screen" required="true">
@@ -12,8 +13,10 @@
     </node>
 
     <!-- MPC node -->
-    <?ignore <node pkg="quad_control" name="mpc_node" type="mpc_node" output="screen" required="true" launch-prefix="gdb -ex run --args" /> ?>
-    <node pkg="quad_control" name="mpc_node" type="mpc_node" output="screen" required="true" />
+    <?ignore <node pkg="quad_control" name="mpc_node" type="mpc_node" output="screen" required="true" launch-prefix="gdb -ex run --args"> ?>
+    <node pkg="quad_control" name="mpc_node" type="mpc_node" output="screen" required="true">
+        <param name="search_traj_file" type="string" value="$(find quad_control)/extra/traj/traj_$(arg traj_name).csv" />
+    </node>
 
     <!-- Apriltag node -->
     <include file="$(find apriltag_ros)/launch/continuous_detection.launch">

@@ -12,8 +12,13 @@ int main(int argc, char **argv)
     ros::init(argc, argv, "mpc_node");
     ros::NodeHandle nh;
 
-    MPC mpc_ctrl;
-
+    // Parameters
+    string searchTrajFile;
+    nh.getParam("/mpc_node/search_traj_file", searchTrajFile);
+    
+    // Create MPC object
+    MPC mpc_ctrl(searchTrajFile);
+    
     // Publishers
     mpc_ctrl.mpc_pub = nh.advertise<mavros_msgs::AttitudeTarget>
             ("mavros/setpoint_raw/attitude", 1); // publish control inputs
@@ -25,7 +30,9 @@ int main(int argc, char **argv)
             ("mpc_prediciton", 1);    // reference trajectory for current mpc iteration     
     mpc_ctrl.gt_pub = nh.advertise<nav_msgs::Path>
             ("mpc_ground_truth", 1); // ground truth pose path
-    
+    mpc_ctrl.tag_pub = nh.advertise<geometry_msgs::PoseStamped>
+            ("mpc_april_tag", 1); // estimated apriltag pose in map/world frame
+
     // Subscribers
     mpc_ctrl.pose_sub = nh.subscribe
             ("mavros/local_position/pose", 1, &MPC::mavPoseCallback, &mpc_ctrl, ros::TransportHints().tcpNoDelay());
