@@ -12,6 +12,10 @@
     <include>
       <uri>model://asphalt_plane</uri>
     </include>
+    <include>
+      <uri>model://apriltag_landing_pad</uri>
+      <pose>4 4 0.1 0 0 .4</pose>
+    </include>
 
     <!-- Only one ROS interface plugin is required per world, as any other plugin can connect a Gazebo
          topic to a ROS topic (or vise versa). -->

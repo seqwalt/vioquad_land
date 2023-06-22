@@ -9,7 +9,7 @@
     </include>
     <include>
       <uri>model://apriltag_landing_pad</uri>
-      <pose>0.108 0 0 0 0 0</pose>
+      <pose>4 4 0 0 0 .4</pose>
     </include>
 
     <physics name='default_physics' default='0' type='ode'>

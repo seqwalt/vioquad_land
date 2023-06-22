@@ -341,7 +341,7 @@ class MPC {
                     firstTime_tagVisible = false;
                     numIntersampleTimes = 10;
                     traj.resize(0,0);
-                    traj = genLandingTraj(numIntersampleTimes, 3.5, false); // generate trajectory. each row has t, x, y, z, vx, vy, vz, qw, qx, qy, qz
+                    traj = genLandingTraj(numIntersampleTimes, 3.5, true); // generate trajectory. each row has t, x, y, z, vx, vy, vz, qw, qx, qy, qz
                     init_acadoVariables();
                     first_mpc_call = true; // reset for new trajectory
                 } else {
@@ -349,9 +349,9 @@ class MPC {
                     //shiftTraj2AprilTag();
                     chrono::steady_clock::time_point curr_time = chrono::steady_clock::now();
                     chrono::duration<double> dur = chrono::duration_cast<chrono::duration<double>>(curr_time - land_start_time);
-                    if ((double)dur.count() > 1.4 && second_traj_solve){
+                    if ((double)dur.count() > 1.0 && second_traj_solve){
                         second_traj_solve = false;
-                        traj = genLandingTraj(numIntersampleTimes, 3.5 - (double)dur.count(), false); // generate trajectory. each row has t, x, y, z, vx, vy, vz, qw, qx, qy, qz
+                        traj = genLandingTraj(numIntersampleTimes, 3.5 - (double)dur.count(), true); // generate trajectory. each row has t, x, y, z, vx, vy, vz, qw, qx, qy, qz
                         init_acadoVariables();
                         first_mpc_call = true;
                     }

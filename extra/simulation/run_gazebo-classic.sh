@@ -80,6 +80,6 @@ check_path_exists "GAZEBO_MODEL_PATH"
 check_command_success "update GAZEBO_MODEL_PATH"
 
 roslaunch px4 posix_sitl.launch \
-  gui:=false \
-  sdf:=$sim_dir/models/iris_downward_camera/iris_downward_camera.sdf \
+  gui:=true \
+  sdf:=$sim_dir/models/iris_with_cameras/iris_with_cameras.sdf \
   world:=$sim_dir/worlds/landing_pad.world
