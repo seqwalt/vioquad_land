@@ -385,7 +385,7 @@ class MinSnapTraj {
             
             // Convert from Eigen matrix to array that can be used by qpOASES
             Eigen::MatrixXd H_eig(numVars, numVars);
-            double min_z_weight = 8.0; // TODO 8 works well for weight
+            double min_z_weight = 8.0;
             H_eig = H_min_snap + min_z_weight*H_min_z;
             H = matrixToArray(H_eig);
             return H;

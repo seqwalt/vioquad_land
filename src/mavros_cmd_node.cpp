@@ -50,14 +50,22 @@ int main(int argc, char **argv)
     nh.param<double>("/mavros_cmd_node/Katt_x", mavCmd.ctrl.K_att[0], 20.0);   // ang_rate = K_att * err_att
     nh.param<double>("/mavros_cmd_node/Katt_y", mavCmd.ctrl.K_att[1], 20.0);
     nh.param<double>("/mavros_cmd_node/Katt_z", mavCmd.ctrl.K_att[2], 20.0);
-        
+
+    bool direct_from_vio; // if true, get odometry directly from vio (don't use px4 EKF2)
+    nh.param<bool>("/mavros_cmd_node/direct_from_vio", direct_from_vio, false);    
+    
     // Subscribers
+    if(direct_from_vio){
+        mavCmd.vio_sub = nh.subscribe
+                ("est_odometry", 1, &MavrosCmd::vioOdomCallback, &mavCmd, ros::TransportHints().tcpNoDelay());
+    } else {
+        mavCmd.pose_sub = nh.subscribe
+                ("mavros/local_position/pose", 1, &MavrosCmd::mavPoseCallback, &mavCmd, ros::TransportHints().tcpNoDelay());
+        mavCmd.vel_sub = nh.subscribe
+                ("mavros/local_position/velocity_local", 1, &MavrosCmd::mavVelCallback, &mavCmd, ros::TransportHints().tcpNoDelay());
+    }
     mavCmd.mode_sub = nh.subscribe
             ("mavros/state", 1, &MavrosCmd::modeCallback, &mavCmd); // http://wiki.ros.org/roscpp_tutorials/Tutorials/UsingClassMethodsAsCallbacks
-    mavCmd.pose_sub = nh.subscribe
-            ("mavros/local_position/pose", 1, &MavrosCmd::mavPoseCallback, &mavCmd, ros::TransportHints().tcpNoDelay());
-    mavCmd.vel_sub = nh.subscribe
-            ("mavros/local_position/velocity", 1, &MavrosCmd::mavVelCallback, &mavCmd, ros::TransportHints().tcpNoDelay());
     mavCmd.traj_sub = nh.subscribe
             ("reference/flatoutputs", 1, &MavrosCmd::mavRefCallback, &mavCmd, ros::TransportHints().tcpNoDelay());
 

@@ -248,31 +248,3 @@ class ACADO_MSG {
         } AcadoReturnValueList;
 
 };
-
-// ADDED by SW
-// Print array as matrix
-// #include <cstdio>
-// #include <iostream>
-// #include <string>
-// #include <vector>
-// void printArrayAsMatrix(float *A, int rows, int cols) {
-// 		int i, j;
-// 		for (i = 0; i < rows; i++) {
-// 				for (j = 0; j < cols; j++)
-// 						printf("  % 9.2f", A[i*cols+j]);
-// 				printf(",\n");
-// 		}
-// 		printf(",\n");
-// }
-
-//     std::cout << "H: " << std::endl;
-//     //(sizeof(acadoWorkspace.H)/sizeof(*acadoWorkspace.H)) << std::endl;
-// 	printArrayAsMatrix(acadoWorkspace.H, 80, 80);
-//     std::vector<std::string> str {"g: ", "lb: ", "ub: ", "y: "};
-//     std::vector<float *> ptrs {acadoWorkspace.g, acadoWorkspace.lb, acadoWorkspace.ub, acadoWorkspace.y};
-//     for (int i = 0; i <= 3; i++){
-//         std::cout << str[i] << std::endl;
-//         //(sizeof(ptrs[i])/sizeof(*ptrs[i])) << std::endl;
-//         printArrayAsMatrix(ptrs[i], 1, 80);
-//     }
-//     std::cout << "retVal: " << retVal << std::endl;

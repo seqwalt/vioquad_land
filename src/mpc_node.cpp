@@ -14,10 +14,13 @@ int main(int argc, char **argv)
 
     // Parameters
     string searchTrajFile;
+    bool direct_from_vio; // if true, get odometry directly from vio (don't use px4 EKF2)
     nh.getParam("/mpc_node/search_traj_file", searchTrajFile);
+    nh.getParam("/mpc_node/direct_from_vio", direct_from_vio);
     
     // Create MPC object
     MPC mpc_ctrl(searchTrajFile);
+    nh.getParam("/mpc_node/enable_sim", mpc_ctrl.sim_enable);
     
     // Publishers
     mpc_ctrl.mpc_pub = nh.advertise<mavros_msgs::AttitudeTarget>
@@ -28,16 +31,21 @@ int main(int argc, char **argv)
             ("mpc_curr_reference", 1);    // reference trajectory for current mpc iteration
     mpc_ctrl.pred_pub = nh.advertise<nav_msgs::Path>
             ("mpc_prediciton", 1);    // reference trajectory for current mpc iteration     
-    mpc_ctrl.gt_pub = nh.advertise<nav_msgs::Path>
-            ("mpc_ground_truth", 1); // ground truth pose path
+    mpc_ctrl.est_pub = nh.advertise<nav_msgs::Path>
+            ("state_estimate", 1); // estimated pose path
     mpc_ctrl.tag_pub = nh.advertise<geometry_msgs::PoseStamped>
             ("mpc_april_tag", 1); // estimated apriltag pose in map/world frame
 
     // Subscribers
-    mpc_ctrl.pose_sub = nh.subscribe
-            ("mavros/local_position/pose", 1, &MPC::mavPoseCallback, &mpc_ctrl, ros::TransportHints().tcpNoDelay());
-    mpc_ctrl.vel_sub = nh.subscribe
-            ("mavros/local_position/velocity_local", 1, &MPC::mavVelCallback, &mpc_ctrl, ros::TransportHints().tcpNoDelay());
+    if(direct_from_vio){
+        mpc_ctrl.vio_sub = nh.subscribe
+                ("ground_truth/state", 1, &MPC::vioOdomCallback, &mpc_ctrl, ros::TransportHints().tcpNoDelay());
+    } else {
+        mpc_ctrl.pose_sub = nh.subscribe
+                ("mavros/local_position/pose", 1, &MPC::mavPoseCallback, &mpc_ctrl, ros::TransportHints().tcpNoDelay());
+        mpc_ctrl.vel_sub = nh.subscribe
+                ("mavros/local_position/velocity_local", 1, &MPC::mavVelCallback, &mpc_ctrl, ros::TransportHints().tcpNoDelay());
+    }
     mpc_ctrl.imu_sub = nh.subscribe
             ("mavros/imu/data_raw", 1, &MPC::mavIMUCallback, &mpc_ctrl, ros::TransportHints().tcpNoDelay());
     mpc_ctrl.apriltag_sub = nh.subscribe

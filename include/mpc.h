@@ -5,6 +5,8 @@
 #include <mavros/mavros.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/TwistStamped.h>
+#include <nav_msgs/Odometry.h>
+#include <nav_msgs/Path.h>
 #include <sensor_msgs/Imu.h>
 #include <apriltag_ros/AprilTagDetectionArray.h>
 #include <mavros_msgs/CommandBool.h>
@@ -13,8 +15,6 @@
 #include <mavros_msgs/State.h>
 #include <mavros_msgs/Thrust.h>
 #include <mavros_msgs/AttitudeTarget.h>
-
-#include <nav_msgs/Path.h>
 
 #include <Eigen/Core>
 #include <Eigen/Geometry>
@@ -30,14 +30,12 @@
 
 #include <std_srvs/Trigger.h>
 #include "quad_control/InitSetpoint.h" // custom service
-#include "quad_control/FlatOutputs.h"  // custorm message
+#include "quad_control/FlatOutputs.h"  // custom message
 
-// for min snap traj gen
+// for trajectory generation
 #include "min_snap_traj.h"
 #include <iomanip>
 #include <chrono>
-
-// for loading a trajectory in
 
 // for mpc
 #include "acado_common.h"
@@ -65,16 +63,17 @@ ACADOworkspace acadoWorkspace;
 
 class MPC {
     public:
-        // Some convenient public ACADO definitions
         ros::Publisher mpc_pub;
         ros::Publisher ref_total_pub;
         ros::Publisher ref_curr_pub;
         ros::Publisher pred_pub;
-        ros::Publisher gt_pub;
+        ros::Publisher est_pub;
         ros::Publisher tag_pub;
         
         ros::Subscriber pose_sub;
         ros::Subscriber vel_sub;
+        ros::Subscriber vio_sub;
+        ros::Subscriber vio_sub_local_vel;
         ros::Subscriber imu_sub;
         ros::Subscriber apriltag_sub;
         ros::Timer mpc_timer;
@@ -82,9 +81,10 @@ class MPC {
         
         quad_control::FlatOutputs ref;
         unsigned int iter = 0;
+        bool sim_enable;
 
-        //MPC(const std::string file){ // constructor
-        MPC(const std::string& searchTrajFileName){ // constructor
+        // MPC class constructor
+        MPC(const std::string& searchTrajFileName){
             // Clear solver memory.
             memset(&acadoWorkspace, 0, sizeof( acadoWorkspace ));
             memset(&acadoVariables, 0, sizeof( acadoVariables ));
@@ -94,20 +94,24 @@ class MPC {
 
             // Initialize acadoVariables for horizontal search path
             traj = loadSearchTraj(searchTrajFileName);
-            init_acadoVariables();
+            initAcadoVariables();
             
             if( VERBOSE ) acado_printHeader();
             ROS_INFO_STREAM("MPC solver initialized.");
 
             first_mpc_call = true;
-            firstTime_tagVisible = true;
             near_landing_pad = false;
-            second_traj_solve = true;
+            has_landed = false;            
+            traj_gen_time = chrono::steady_clock::now();
+            prev_time2land = 0;
+            first_april_tag = true;
+            tag_visible = false;
             
             // Prepare first step
             acado_preparationStep();
         }
 
+        // Send initial pose back to mavros_cmd_node, upon request
         bool initRefCallback(quad_control::InitSetpoint::Request &req, quad_control::InitSetpoint::Response &res){
             res.success = true;
             res.position.x = traj(0,1);
@@ -118,6 +122,7 @@ class MPC {
             return true;
         }
 
+        // Start ROS timer for MPC control (mpcCallback), upon request
         bool streamMpcCallback(std_srvs::Trigger::Request &req, std_srvs::Trigger::Response &res){
             mpc_timer.start();  // start publishing the MPC control values
             if(mpc_timer.hasStarted()){
@@ -127,6 +132,7 @@ class MPC {
             return true;
         }
 
+        // Publish tragectories and poses for rviz visualization
         void viewPathCallback(const ros::TimerEvent &event){
             // Publish reference trajectory for visualization
             ref_total_pub.publish(mpcTotalRef);
@@ -134,9 +140,9 @@ class MPC {
             tag_pub.publish(tagPose);
             
             if(!first_mpc_call){
-                // Publish ground truth path for visualization
-                addPoseToPath(curPose, mpcGT);
-                gt_pub.publish(mpcGT);
+                // Publish estimated path for visualization (vio or ekf2, depending on direct_from_vio param)
+                addPoseToPath(curPose, mpcEst);
+                est_pub.publish(mpcEst);
                 
                 // Publish reference for current mpc iteration
                 acadoArr2PathMsg(acadoVariables.y, NY, mpcCurrRef);
@@ -148,6 +154,8 @@ class MPC {
             }
         }
         
+        // Track the trajectory with an acado MPC by
+        // publishing thrust and angular rates to mavros
         void mpcCallback(const ros::TimerEvent &event){
             if (!near_landing_pad){
                 // Not close enough to landing pad to turn off motors
@@ -167,18 +175,19 @@ class MPC {
                 acadoVariables.x0[7] = curVel.x;
                 acadoVariables.x0[8] = curVel.y;
                 acadoVariables.x0[9] = curVel.z;
-
+                
+                double duration;
                 if (first_mpc_call){
                     first_mpc_call = false;
-                    start_time = ros::Time::now().toSec();
+                    mpc_start_time = ros::Time::now().toSec();
                     duration = 0.0;
                 } else {
-                    duration = min(ros::Time::now().toSec() - start_time, traj(traj_num_times-1,0));
+                    duration = min(ros::Time::now().toSec() - mpc_start_time, traj(traj_num_times-1,0));
                 }
                 
                 int row1, row2;
                 int start_row = (int)floor(duration/traj_time_step);
-                double s = (duration - traj(start_row,0))/traj_time_step; // interpolation parameter
+                double s = min(max((duration - traj(start_row,0))/traj_time_step, 0.0), 1.0); // interpolation parameter
                 for (int i = 0; i < N; ++i){ // iterate over time steps within horizon
                     // Update the references
                     row1 = min(traj_num_times-1, start_row + i*numIntersampleTimes);
@@ -244,6 +253,9 @@ class MPC {
                 // Near the landing pad, so set control inputs to zero
                 T = 0.0;
                 wx = 0.0; wy = 0.0; wz = 0.0;
+                
+                has_landed = true;
+                ROS_INFO_STREAM_ONCE(endl << " ---- The quadcopter has landed! ---- " << endl);
             }
             
             // Apply control input
@@ -252,7 +264,7 @@ class MPC {
             mpcInputs.body_rate.x = wx;
             mpcInputs.body_rate.y = wy;
             mpcInputs.body_rate.z = wz;
-            mpcInputs.thrust = thrust_map(T);
+            mpcInputs.thrust = thrustMap(T);
             mpc_pub.publish(mpcInputs); // set attitude, body rate and thrust to mavros
             
             //acado_printDifferentialVariables();
@@ -263,19 +275,29 @@ class MPC {
 
         // Pass along current mav pose data, wrt world frame.
         void mavPoseCallback(const geometry_msgs::PoseStamped &msg) {
-            curPose = msg.pose;
-            
-            geometry_msgs::Quaternion curQuat = curPose.orientation;
-            Eigen::Quaterniond quadQuat(curQuat.w, curQuat.x, curQuat.y, curQuat.z);  // convert quadQuat from message to Eigen::Quateniond
-            curYaw = quaternion2yaw(quadQuat);
+            OdomData data;
+            data.source = POSE_BY_EKF2;
+            data.pose = msg.pose;
+            odomMsgSelector(data);
         }
 
         // Pass along current mav velocity data, wrt world frame.
         void mavVelCallback(const geometry_msgs::TwistStamped &msg) {
-            curVel = msg.twist.linear;
+            OdomData data;
+            data.source = VEL_BY_EKF2;
+            data.velocity = msg.twist.linear;
+            odomMsgSelector(data);
         }
         
-        // Pass along current raw mav imu data,wrt body frame.
+        void vioOdomCallback(const nav_msgs::Odometry &msg){
+            OdomData data;
+            data.source = ODOM_BY_VIO;
+            data.pose = msg.pose.pose;
+            data.velocity = msg.twist.twist.linear;
+            odomMsgSelector(data);
+        }
+        
+        // Pass along current raw mav imu data, wrt body frame.
         void mavIMUCallback(const sensor_msgs::Imu &msg) {
             curImuAcc = msg.linear_acceleration; // linear acceleration in imu body frame
         }
@@ -283,8 +305,8 @@ class MPC {
         // Compute AprilTag pose in World frame (compute transformation T_WA)
         void mavAprilTagCallback(const apriltag_ros::AprilTagDetectionArray &msg) {
             // Check if tag is visible
-            tagVisible = !msg.detections.empty();            
-            if (tagVisible){                
+            tag_visible = !msg.detections.empty();
+            if (tag_visible && !has_landed){
                 // Form T_WB (load from state estimation: mocap, VIO, etc.)
                 Eigen::Isometry3d T_WB = Eigen::Isometry3d::Identity();
                 Eigen::Vector3d tran_WB(curPose.position.x, curPose.position.y, curPose.position.z); // translation part
@@ -321,6 +343,7 @@ class MPC {
                 Eigen::Quaterniond tagQuat = Eigen::Quaterniond(tagRot);
                 tagYaw = quaternion2yaw(tagQuat);
                 
+                // Fill tagPose
                 geometry_msgs::PoseStamped tagPoseTemp;
                 tagPoseTemp.pose.position.x = tagPos(0);
                 tagPoseTemp.pose.position.y = tagPos(1);
@@ -333,70 +356,118 @@ class MPC {
                 tagPoseTemp.header.stamp = ros::Time::now();
                 tagPose = tagPoseTemp;
                 
-                // Gerenerate landing trajectory for first time
-                // TODO create landing traj after continuously seeing AprilTag for some amount of time
-                if (firstTime_tagVisible){
-                    // start a timer
-                    land_start_time = chrono::steady_clock::now();
-                    firstTime_tagVisible = false;
+                // TODO use aprilTag as state estimation:
+                // Use AprilTag as position estimation of quadcopter
+//                 if (first_april_tag){
+//                     first_april_tag = false;
+//                     T_WA_initial = T_WA;
+//                 }
+//                 Eigen::Isometry3d T_WB_tag = T_WA_initial * T_CA.inverse() * T_BC.inverse(); // T_WB estimate, using apriltag as reference
+//                 OdomData odom_data;
+//                 Eigen::Vector3d pos_WB_tag = T_WB_tag.translation();
+//                 odom_data.pose.position.x = pos_WB_tag(0);
+//                 odom_data.pose.position.x = pos_WB_tag(1);
+//                 odom_data.pose.position.x = pos_WB_tag(2);
+//                 odom_data.source = APRIL_TAG;
+//                 odomMsgSelector(odom_data);
+//                 ROS_INFO_STREAM_ONCE("Using AprilTag as position estimate.");
+                
+                
+                // Gerenerate landing trajectory
+                double h_land = tran_CA[2]; // height above landing pad
+                double vel_base = 0.43;     // average speed if curVel.z = 0
+                double scale_val = 0.45;    // increasing scale_val causes shorter land times when curVel.z < 0, and longer times when curVel.z > 0
+                double avg_spd = abs(vel_base*exp(-scale_val*min(max(curVel.z, -1.0), 1.0))); // average spd (m/s)
+                double time2land = h_land/avg_spd; // time to land
+                chrono::steady_clock::time_point curr_time = chrono::steady_clock::now();
+                chrono::duration<double> time_since_last = chrono::duration_cast<chrono::duration<double>>(curr_time - traj_gen_time);
+                bool doFOV = true;  // apply FOV constraints to min-snap traj generation
+                if ((double)time_since_last.count() > 0.5*prev_time2land
+                    //&& time_land > 0.5
+                    && checkFOVFeasible(doFOV))
+                {
+                    prev_time2land = time2land;
+                    traj_gen_time = chrono::steady_clock::now();
                     numIntersampleTimes = 10;
                     traj.resize(0,0);
-                    traj = genLandingTraj(numIntersampleTimes, 3.5, true); // generate trajectory. each row has t, x, y, z, vx, vy, vz, qw, qx, qy, qz
-                    init_acadoVariables();
+                    traj = genLandingTraj(numIntersampleTimes, time2land, doFOV); // generate trajectory. each row has t, x, y, z, vx, vy, vz, qw, qx, qy, qz
+                    initAcadoVariables();
                     first_mpc_call = true; // reset for new trajectory
-                } else {
-                    // TODO fix this shifting
-                    //shiftTraj2AprilTag();
-                    chrono::steady_clock::time_point curr_time = chrono::steady_clock::now();
-                    chrono::duration<double> dur = chrono::duration_cast<chrono::duration<double>>(curr_time - land_start_time);
-                    if ((double)dur.count() > 1.0 && second_traj_solve){
-                        second_traj_solve = false;
-                        traj = genLandingTraj(numIntersampleTimes, 3.5 - (double)dur.count(), true); // generate trajectory. each row has t, x, y, z, vx, vy, vz, qw, qx, qy, qz
-                        init_acadoVariables();
-                        first_mpc_call = true;
-                    }
                 }
             } else {
-                // No AprilTags detected
+                // AprilTag is not detected, reset
+                first_april_tag = true;
             }
         }
 
     private:
-        geometry_msgs::Pose curPose;
+        // Pose data
         double curYaw;
+        double tagYaw;
+        geometry_msgs::Pose curPose;
         geometry_msgs::Vector3 curVel;
         geometry_msgs::Vector3 curImuAcc;
-        Eigen::Vector3d tagPos;
-        double tagYaw;
         geometry_msgs::PoseStamped tagPose;
+        Eigen::Vector3d tagPos;
+        enum OdomSource {
+            APRIL_TAG,
+            POSE_BY_EKF2,
+            VEL_BY_EKF2,
+            ODOM_BY_VIO
+        };
+        struct OdomData {
+            OdomSource source;
+            geometry_msgs::Pose pose;
+            geometry_msgs::Vector3 velocity;
+        };
+        
+        // MPC data and info
         mavros_msgs::AttitudeTarget mpcInputs;
         nav_msgs::Path mpcTotalRef;  // total reference
-        nav_msgs::Path mpcCurrRef;  // current iteration reference
-        nav_msgs::Path mpcPred;     // mpc prediction
-        nav_msgs::Path mpcGT;   // ground truth
-        int numIntersampleTimes;
-        Eigen::MatrixXd traj;
+        nav_msgs::Path mpcCurrRef;   // current iteration reference
+        nav_msgs::Path mpcPred;      // mpc prediction
+        nav_msgs::Path mpcEst;       // estimate (vio of ekf2 depending on direct_from_vio param)
+        double mpc_start_time;
         bool first_mpc_call;
-        bool tagVisible;  // visibility of AprilTag
-        bool firstTime_tagVisible;
-        bool near_landing_pad;
-        bool second_traj_solve;
-        double start_time, duration; // in seconds
-        double traj_time_step;
-        int traj_num_times;
-        
-        const double land_height = 0.1; // stop motors when this high (m) above landing pad
-        chrono::steady_clock::time_point land_start_time;
-
+        const double mpc_time_horizon = 2.0; // From ../acado/PAMPC/quadrotor_pampc.cpp
         double T, wx, wy, wz;
         acado_timer t;
-
-        void init_acadoVariables(){
+        
+        // Trajectory data, info, data struct
+        Eigen::MatrixXd traj;
+        int numIntersampleTimes;
+        double traj_time_step;
+        int traj_num_times;
+        chrono::steady_clock::time_point traj_gen_time;
+        struct MinSnapData{
+            MinSnapTraj::vectOfMatrix24d bounds;
+            vector<MinSnapTraj::keyframe> keyframes;
+            MinSnapTraj::FOVdata fov_data;
+        };
+        
+        // Landing info
+        bool near_landing_pad;
+        double prev_time2land;
+        const double land_height = 0.1; // stop motors when this high (m) above landing pad
+        bool has_landed;
+        Eigen::Isometry3d T_WA_initial;
+        bool first_april_tag;
+        bool tag_visible;
+        
+        // Initialize the acado variables
+        void initAcadoVariables(){
             // generate and store trajectory
             traj_time_step = traj(1,0) - traj(0,0);
             traj_num_times = traj.rows();
-
-            // Initialize the states TODO: fix the dependency on numIntersampleTimes
+            
+            // Check if trajectory is too short
+            if (traj_num_times < N*numIntersampleTimes + 1){
+                cout << endl << "traj_num_times:        " << traj_num_times << endl;
+                cout << "N*numIntersampleTimes: " << N*numIntersampleTimes << endl;
+                ROS_ERROR_STREAM("Need traj_num_times > N*numIntersampleTimes. Shutting down node ...");
+                ros::shutdown(); 
+            }
+            
             int row;
             for (int i = 0; i < N + 1; ++i){
                 row = i*numIntersampleTimes;
@@ -490,9 +561,9 @@ class MPC {
                 acadoVariables.W[i*blk_size + NY*10 + 10] = 0.0f * xExp; // 5 horiz perception cost
                 acadoVariables.W[i*blk_size + NY*11 + 11] = 0.0f * xExp; // 5 vert perception cost
                 acadoVariables.W[i*blk_size + NY*12 + 12] = 1.0f * uExp; // T gain
-                acadoVariables.W[i*blk_size + NY*13 + 13] = 4.0f * uExp; // w_x gain
-                acadoVariables.W[i*blk_size + NY*14 + 14] = 4.0f * uExp; // w_y gain
-                acadoVariables.W[i*blk_size + NY*15 + 15] = 4.0f * uExp; // w_z gain
+                acadoVariables.W[i*blk_size + NY*13 + 13] = 15.0f * uExp; // w_x gain
+                acadoVariables.W[i*blk_size + NY*14 + 14] = 15.0f * uExp; // w_y gain
+                acadoVariables.W[i*blk_size + NY*15 + 15] = 1.0f * uExp; // w_z gain
             }
             
             xExp = exp(-xCostExp);
@@ -525,51 +596,7 @@ class MPC {
             }
         }
 
-        float thrust_map(double th){
-            // determined for SIMULATION iris quadcopter only
-            // input: mass-normalized thrust (m/s^2)
-            // output: PX4-normalized thrust ([0,1])
-            double a = 0.00013850414341400538;
-            double b = -0.005408755617324549;
-            double c = 0.11336157680888627;
-            double d = -0.0022807568577082674;
-            double norm_th = a*th*th*th + b*th*th + c*th + d;
-            if (th == 0.0) {
-                return 0.0;
-            } else {
-                return (float)std::max(0.0, std::min(1.0, norm_th ));
-            }
-        }
-
-        double lerp(double a, double b, double t){
-            // linear interpolation between a and b
-            assert(t >= 0.0);
-            assert(t <= 1.0);
-            return a + t * (b - a);
-        }
-
-        float lerp(float a, float b, float c, float t){
-            // linear interpolation between a, b and c
-            assert(t >= 0.0f);
-            assert(t <= 1.0f);
-            if (t <= 0.5f) return a + t * (b - a);
-            else return b + t * (c - b);
-        }
-
-        double rand_num(double min, double max) {
-            // Making rng static ensures that it stays the same
-            // between different invocations of the function
-            static std::default_random_engine rng;
-            std::uniform_real_distribution<double> dist(min, max);
-            return dist(rng);
-        }
-
-        void showDuration(string message, chrono::duration<double> t_diff){
-            chrono::duration<double> time_used = chrono::duration_cast<chrono::duration<double>>(t_diff);
-            cout << message << time_used.count()*1000. << " ms" << endl;
-        }
-
-        // Load in a pre-made search trajectory
+        // Load-in a pre-made search trajectory
         Eigen::MatrixXd loadSearchTraj(const std::string& filename){
             
             // find file
@@ -611,52 +638,18 @@ class MPC {
         
         // Generate a landing trajectory once the landing pad (AprilTag) is spotted
         Eigen::MatrixXd genLandingTraj(int numIntersampleTimes, double totalTime, bool doFOV){
-            // Parameters
+            // ------------------ Parameters ------------------ //
             int order = 8;         // order of piecewise polynomials (must be >= 4 for min snap) (works well when order >= numFOVtimes)
             int numIntervals = 1;  // number of time intervals (must be >= 1) (setting to 1 is fine if not using keyframes, and only using FOV constraints)
-            double T = totalTime;  // 3.5 duration of trajectory in seconds (must be > 0.0)
-            vector<double> times = MinSnapTraj::linspace(0.0, T, numIntervals + 1); // times for the polynomial segments
+            double d_time = 0.1; // discretization time for the mpc
+            double total_time = floor(totalTime*((double)numIntersampleTimes/d_time)+0.5)/((double)numIntersampleTimes/d_time); // rounding
+            vector<double> times = MinSnapTraj::linspace(0.0, total_time, numIntervals + 1); // times for the polynomial segments
             
-            // ------------------ Get acceleration in world frame ------------------ //
-            Eigen::Vector3d imuAcc(curImuAcc.x, curImuAcc.y, curImuAcc.z);  // convert acc from message to Eigen 3D vector
-            geometry_msgs::Quaternion curQuat = curPose.orientation;
-            Eigen::Quaterniond quadQuat(curQuat.w, curQuat.x, curQuat.y, curQuat.z);  // convert quadQuat from message to Eigen::Quateniond
-            Eigen::Vector3d accW = quadQuat * imuAcc - Eigen::Vector3d(0.0, 0.0, 9.81);  // rotate imuAcc by quadQuat to get acc wrt world frame, using Eigen overloaded "*" syntax, then account for gravity term
-            
-            // ------------------ Boundary conditions ------------------ //
-            MinSnapTraj::Matrix24d p0_bounds; // p=0 means 0th derivative
-            geometry_msgs::Point curPos = curPose.position;
-            // pos/yaw:  x          y          z          yaw
-            p0_bounds << curPos.x,  curPos.y,  curPos.z,  curYaw, // initial
-                         tagPos(0) - 0.108*cos(tagYaw), tagPos(1) - 0.108*sin(tagYaw), tagPos(2), tagYaw; // final
-
-            MinSnapTraj::Matrix24d p1_bounds; // p=1 means 1st derivative
-            // velocity: vx   vy   vz   vyaw
-            p1_bounds << curVel.x, curVel.y, curVel.z, 0.0, // initial
-                        0.0, 0.0, 0.0, 0.0; // final
-
-            MinSnapTraj::Matrix24d p2_bounds; // p=2 means 2nd derivative
-            // accel:    ax         ay      az      ayaw
-            p2_bounds << accW(0), accW(1), accW(2), 0.0, // initial
-                        0.0, 0.0, 0.0, 0.0; // final
-
-            MinSnapTraj::vectOfMatrix24d BC;
-            BC.push_back(p0_bounds);
-            BC.push_back(p1_bounds);
-            BC.push_back(p2_bounds);
-
-            // ------------------ Keyframe/Waypoints ------------------ //
-            vector<MinSnapTraj::keyframe> Keyframes {}; // no keyframes
-
-            // ------------------ FOV data ------------------ //
-            MinSnapTraj::FOVdata fov_data;
-            fov_data.do_fov = doFOV;
-            fov_data.l = vector<double> {tagPos(0) - 0.108*cos(tagYaw), tagPos(1) - 0.108*sin(tagYaw), tagPos(2)};  // 3D landmark to keep in FOV (i.e. AprilTag center)
-            fov_data.alpha_x = 0.5925;                // half of vertical fov (radians)
-            fov_data.alpha_y = 0.79;                  // half of horizontal fov (radians)
+            // ------------------ Prepare the solver (boundary conditions etc.) ------------------ //
+            MinSnapData data = prepLandingSolver(doFOV);
 
             // ------------------ Solve the trajectory ------------------ //
-            MinSnapTraj prob(order, times, BC, Keyframes, fov_data);  // create object
+            MinSnapTraj prob(order, times, data.bounds, data.keyframes, data.fov_data);  // create object
 
             chrono::steady_clock::time_point tic, toc;                // time the solver
             tic = chrono::steady_clock::now();
@@ -667,35 +660,161 @@ class MPC {
             showDuration("Init solve time: ", toc - tic);
 
             // ------------------ Save trajectory in Eigen matrix ------------------ //
-            double d_time = 0.1; // discretization time for the mpc
-            double num_times = 1.0 + (double)numIntersampleTimes*(T/d_time);
-
-            vector<double> tspan = MinSnapTraj::linspace(0.0, T, num_times); // time points to evaluate the trajectory
+            int num_times = (int)(1.0 + (double)numIntersampleTimes*(total_time/d_time));
+            vector<double> tspan = MinSnapTraj::linspace(0.0, total_time, num_times); // time points to evaluate the trajectory
             Eigen::MatrixXd eval = prob.QuaternionTraj(sol.coeffs, tspan);
+            
+            // Concatonate extra rows if totalT is shorter than mpc_time_horizon
+            if (total_time <= mpc_time_horizon){
+                double start_time = total_time + (d_time/(double)numIntersampleTimes); // need one sample past default time horizon
+                //int num_times_extra = (int)(1.0 + (double)numIntersampleTimes*((mpc_time_horizon - start_time)/d_time));
+                int num_times_extra = (int)(mpc_time_horizon*((double)numIntersampleTimes/d_time)) + 1 - num_times;
+                vector<double> tspan_extra = MinSnapTraj::linspace(start_time, mpc_time_horizon, num_times_extra);
+                Eigen::MatrixXd eval_extra(tspan_extra.size(), eval.cols());
+                for (size_t i = 0; i < tspan_extra.size(); i++){
+                    eval_extra.row(i) = eval.row(eval.rows()-1);
+                    eval_extra(i, 0) = tspan_extra[i];
+                }
+                Eigen::MatrixXd eval_total(eval.rows() + eval_extra.rows(), eval.cols());
+                eval_total << eval, eval_extra;  // concatenate both matrices
+
+                // ------------------ Load ROS Trajectory message ------------------ //
+                Eigen2PathMsg(eval_total, mpcTotalRef);
+                return eval_total;
+            }
             
             // ------------------ Load ROS Trajectory message ------------------ //
             Eigen2PathMsg(eval, mpcTotalRef);
-            
             return eval;
         }
         
-        // Shift the end of the landing trajectory to the AprilTag marker, to adjust for inaccuracy/motion of AprilTag pose estimate
-        void shiftTraj2AprilTag() {
-            Eigen::MatrixXd eval = traj;
+        // Prepare boundary conditions and other data for trajectory generation
+        MinSnapData prepLandingSolver(bool doFOV) {
+            // ------------------ Get acceleration in world frame ------------------ //
+            Eigen::Vector3d imuAcc(curImuAcc.x, curImuAcc.y, curImuAcc.z);  // convert acc from message to Eigen 3D vector
+            geometry_msgs::Quaternion curQuat = curPose.orientation;
+            Eigen::Quaterniond quadQuat(curQuat.w, curQuat.x, curQuat.y, curQuat.z);  // convert quadQuat from message to Eigen::Quateniond
+            Eigen::Vector3d accW = quadQuat * imuAcc - Eigen::Vector3d(0.0, 0.0, 9.81);  // rotate imuAcc by quadQuat to get acc wrt world frame, using Eigen overloaded "*" syntax, then account for gravity term
+            // ------------------ Get velocity in world frame ------------------ //
+            Eigen::Vector3d velBody(curVel.x, curVel.y, curVel.z);
+            Eigen::Vector3d velW = quadQuat * velBody;
             
-            int num_times = eval.rows();
-            for (int i = 0; i < num_times; i++) {
-                // Shift position
-                eval(i, 1) += tagPos(0) - eval(num_times-1, 1); // x
-                eval(i, 2) += tagPos(1) - eval(num_times-1, 2); // y
-                eval(i, 3) += tagPos(2) - eval(num_times-1, 3); // z
+            // ------------------ Boundary conditions ------------------ //
+            MinSnapTraj::Matrix24d p0_bounds; // p=0 means 0th derivative
+            geometry_msgs::Point curPos = curPose.position;
+            // pos/yaw:  x          y          z          yaw
+            p0_bounds << curPos.x,  curPos.y,  curPos.z,  curYaw, // initial
+                         tagPos(0) - 0.108*cos(tagYaw), tagPos(1) - 0.108*sin(tagYaw), tagPos(2), tagYaw; // final TODO: why does yaw change direction after initial trajectory generation?
+
+            MinSnapTraj::Matrix24d p1_bounds; // p=1 means 1st derivative
+            // velocity: vx   vy   vz   vyaw
+            p1_bounds << velW(0), velW(1), velW(2), 0.0, // initial
+                        0.0, 0.0, 0.0, 0.0; // final
+
+            MinSnapTraj::Matrix24d p2_bounds; // p=2 means 2nd derivative
+            // accel:    ax         ay      az      ayaw
+            p2_bounds << accW(0), accW(1), accW(2), 0.0, // initial
+                        0.0, 0.0, 0.0, 0.0; // final
+
+            MinSnapData data;
+            data.bounds.push_back(p0_bounds);
+            data.bounds.push_back(p1_bounds);
+            data.bounds.push_back(p2_bounds);
+
+            // ------------------ Keyframe/Waypoints ------------------ //
+            data.keyframes = {}; // no keyframes
+
+            // ------------------ FOV data ------------------ //
+            data.fov_data.do_fov = doFOV;
+            data.fov_data.l = vector<double> {tagPos(0) - 0.108*cos(tagYaw), tagPos(1) - 0.108*sin(tagYaw), tagPos(2)};  // 3D landmark to keep in FOV (i.e. AprilTag center)
+            data.fov_data.alpha_x = 0.5;                // half of vertical fov (radians), orig: 0.59
+            data.fov_data.alpha_y = 0.7;                // orig: 0.79
+            
+            return data;
+        }
+        
+        // Check if a FOV-constrained trajectory if feasible
+        bool checkFOVFeasible(bool doFOV) {
+            if (doFOV) {
+                MinSnapData data = prepLandingSolver(doFOV);
+                vector<double> l = data.fov_data.l;
+                double alpha_x = data.fov_data.alpha_x;
+                double alpha_y = data.fov_data.alpha_y; 
                 
-                // TODO: Shift yaw
+                double x0 = data.bounds[0](0,0); double xm = data.bounds[0](1,0);
+                double y0 = data.bounds[0](0,1); double ym = data.bounds[0](1,1);
+                double z0 = data.bounds[0](0,2); double zm = data.bounds[0](1,2);           
+                double theta_x0 = atan2(l[0] - x0, z0 - l[2]); // initial theta for ax az constraint
+                double theta_xm = atan2(l[0] - xm, zm - l[2]); // final theta for ax az constraint
+                double theta_y0 = atan2(l[1] - y0, z0 - l[2]); // initial theta for ay az constraint
+                double theta_ym = atan2(l[1] - ym, zm - l[2]); // final theta for ay az constraint
                 
+                // Check FOV constraint satisfied at initial and final times
+                bool theta_x_BC_FOV = ( (alpha_x - abs(theta_x0) > 1e-3) && (alpha_x - abs(theta_xm) > 1e-3) );
+                bool theta_y_BC_FOV = ( (alpha_y - abs(theta_y0) > 1e-3) && (alpha_y - abs(theta_ym) > 1e-3) );
+                
+                return (theta_x_BC_FOV && theta_y_BC_FOV);
+            } else {
+                return true;
+            }
+        }
+        
+        void odomMsgSelector(const OdomData& data) {
+            bool data_has_pose = (data.source == POSE_BY_EKF2 || data.source == ODOM_BY_VIO);
+            bool data_has_vel = (data.source == VEL_BY_EKF2 || data.source == ODOM_BY_VIO);
+            assert(data.source == APRIL_TAG || data.source == POSE_BY_EKF2 || data.source == VEL_BY_EKF2 || data.source == ODOM_BY_VIO); // make sure data.source is filled
+            // TODO use aprilTag as state estimation:
+//             if (tag_visible) { // Use AprilTag for position estimate if available
+//                 if(data.source == APRIL_TAG){
+//                     curPose.position = data.pose.position; // position of quad, using apriltag estimate
+//                 } else if (data_has_pose){
+//                     curPose.orientation = data.pose.orientation;
+//                     geometry_msgs::Quaternion curQuat = curPose.orientation;
+//                     Eigen::Quaterniond quadQuat(curQuat.w, curQuat.x, curQuat.y, curQuat.z);  // convert quadQuat from message to Eigen::Quateniond
+//                     curYaw = quaternion2yaw(quadQuat);
+//                 }
+//             } else if (data_has_pose) {
+//                 curPose = data.pose;
+//                 geometry_msgs::Quaternion curQuat = curPose.orientation;
+//                 Eigen::Quaterniond quadQuat(curQuat.w, curQuat.x, curQuat.y, curQuat.z);  // convert quadQuat from message to Eigen::Quateniond
+//                 curYaw = quaternion2yaw(quadQuat);
+//             }
+//             if (data_has_vel){
+//                 curVel = data.velocity;
+//             }
+            if (data_has_pose) {
+                curPose = data.pose;
+                geometry_msgs::Quaternion curQuat = curPose.orientation;
+                Eigen::Quaterniond quadQuat(curQuat.w, curQuat.x, curQuat.y, curQuat.z);  // convert quadQuat from message to Eigen::Quateniond
+                curYaw = quaternion2yaw(quadQuat);
+            }
+            if (data_has_vel){
+                curVel = data.velocity;
+            }
+        }
+        
+        // Convert mass-normalized thrust to PX4 normalized thrust
+        float thrustMap(double th){
+            // input: mass-normalized thrust (m/s^2)
+            // output: PX4-normalized thrust ([0,1])
+            double a, b, c, d;
+            
+            if (sim_enable){
+                a = 0.00013850414341400538;
+                b = -0.005408755617324549;
+                c = 0.11336157680888627;
+                d = -0.0022807568577082674;
+            } else {
+                ROS_ERROR_STREAM("No thrust map for real quadcopter.");
+                ros::shutdown();
             }
             
-            traj = eval;
-            Eigen2PathMsg(eval, mpcTotalRef);
+            double norm_th = a*th*th*th + b*th*th + c*th + d;
+            if (th == 0.0) {
+                return 0.0;
+            } else {
+                return (float)std::max(0.0, std::min(1.0, norm_th ));
+            }
         }
         
         // Method to convert Eigen matrix data into a ROS nav_msgs/Path message
@@ -765,6 +884,27 @@ class MPC {
             vector<double> q{quat.coeffs()(3), quat.coeffs()(0), quat.coeffs()(1), quat.coeffs()(2)};
             double yaw = atan2(2*(q[0]*q[3] + q[1]*q[2]), pow(q[0],2) + pow(q[1],2) - pow(q[2],2) - pow(q[3],2));
             return yaw;
+        }
+        
+        // Linear interpolation between a and b
+        double lerp(double a, double b, double t){
+            assert(t >= 0.0);
+            assert(t <= 1.0);
+            return a + t * (b - a);
+        }
+
+        // Piecewise linear interpolation between a, b and c
+        float lerp(float a, float b, float c, float t){
+            assert(t >= 0.0f);
+            assert(t <= 1.0f);
+            if (t <= 0.5f) return a + t * (b - a);
+            else return b + t * (c - b);
+        }
+
+        // Print message and chrono duration in ms 
+        void showDuration(string message, chrono::duration<double> t_diff){
+            chrono::duration<double> time_used = chrono::duration_cast<chrono::duration<double>>(t_diff);
+            cout << message << time_used.count()*1000. << " ms" << endl;
         }
 };
 

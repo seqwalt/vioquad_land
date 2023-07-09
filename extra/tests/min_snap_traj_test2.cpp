@@ -143,7 +143,7 @@ int main(int argc, char **argv)
 // ------------------ Analyze/save trajectory ------------------ //
     double time_step = 0.1;
     int numIntersampleTimes = 10;
-    double num_times = 1 + (double)numIntersampleTimes*(T/time_step);
+    int num_times = (int)(1.0 + (double)numIntersampleTimes*(T/time_step));
     vector<double> tspan = MinSnapTraj::linspace(0.0, T, num_times); // time points to evaluate the trajectory
     //vector<double> tspan = MinSnapTraj::linspace(0.0, T, 50); // time points to evaluate the trajectory
     //Eigen::MatrixXd eval_flat = prob.FlatOutputTraj(sol.coeffs, tspan);

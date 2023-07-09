@@ -4,6 +4,7 @@
 #include <ros/ros.h>
 #include <mavros/mavros.h>
 #include <geometry_msgs/PoseStamped.h>
+#include <nav_msgs/Odometry.h>
 #include <mavros_msgs/CommandBool.h>
 #include <mavros_msgs/CommandTOL.h>
 #include <mavros_msgs/SetMode.h>
@@ -41,6 +42,7 @@ class MavrosCmd {
         ros::Subscriber mode_sub;
         ros::Subscriber pose_sub;
         ros::Subscriber vel_sub;
+        ros::Subscriber vio_sub;
         ros::Subscriber traj_sub;
 
         ros::Publisher pos_pub;
@@ -86,16 +88,16 @@ class MavrosCmd {
                     geometry_msgs::PoseStamped takeoff_msg;
                     takeoff_msg.header.stamp = ros::Time::now();
                     takeoff_msg.pose = home_pose;
-                    double z_ref = 0.3;
+                    double z_ref = 1.0;
                     takeoff_msg.pose.position.z += z_ref;
 
                     // Error
                     double z_diff = takeoff_msg.pose.position.z - curPose.position.z;
-                    /*if (ros::Time::now() - print_request > ros::Duration(3.0)){
+                    if (ros::Time::now() - print_request > ros::Duration(3.0)){
                         ROS_INFO_STREAM("z_diff = " << z_diff);
                         print_request = ros::Time::now();
-                    }*/
-                    if (abs(z_diff) > 0.3*z_ref){
+                    }
+                    if (abs(z_diff) > 0.8){
                         pos_pub.publish(takeoff_msg);
                     } else {
                         pos_pub.publish(takeoff_msg);
@@ -170,9 +172,9 @@ class MavrosCmd {
                     mavros_set_mode.request.custom_mode = "AUTO.LAND";
                     if (currentModes.mode != "AUTO.LAND" && (ros::Time::now() - land_request > ros::Duration(2.0))) {
                         if (set_mode_client.call(mavros_set_mode) && mavros_set_mode.response.mode_sent) {
-                        ROS_INFO("AUTO.LAND enabled");
-                        ROS_INFO("Once landed, switch to position mode and disarm.");
-                        cmdloop_timer.stop();
+                            ROS_INFO("AUTO.LAND enabled");
+                            ROS_INFO("Once landed, switch to position mode and disarm.");
+                            cmdloop_timer.stop();
                         }
                         land_request = ros::Time::now();
                     }
@@ -201,6 +203,16 @@ class MavrosCmd {
         // Required for feedback control of quadcopter
         void mavVelCallback(const geometry_msgs::TwistStamped &msg) {
             curVel = msg.twist.linear;
+        }
+        
+        void vioOdomCallback(const nav_msgs::Odometry &msg) {
+            if (!received_home_pose) {
+                received_home_pose = true;
+                home_pose = msg.pose.pose;
+                ROS_INFO_STREAM("Home pose initialized to: " << home_pose);
+            }
+            curPose = msg.pose.pose;
+            curVel = msg.twist.twist.linear;
         }
 
         // Control Inputs are sent, after recieving reference setpoint
