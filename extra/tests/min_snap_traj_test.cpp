@@ -123,7 +123,7 @@ int main(int argc, char **argv)
     //saveMatrix(dir_path + data_dir + key_file, pos);
     
     cout << "Trajectory data saved at " << endl << dir_path + data_dir << endl << endl;
-    
+
     return 0;
 }
 

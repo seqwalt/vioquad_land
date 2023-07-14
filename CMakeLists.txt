@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.0)
 project(quad_control)
 
-set(CMAKE_BUILD_TYPE Debug)
+#set(CMAKE_BUILD_TYPE Debug)
 
 ## Default to C++14
 if(NOT CMAKE_CXX_STANDARD)
@@ -9,8 +9,8 @@ if(NOT CMAKE_CXX_STANDARD)
 endif()
 
 # flags for speed (should already be enabled by default)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra")
-set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -march=native")
+#set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -fopenmp -O3")
 
 ## Find catkin and any catkin packages
@@ -126,6 +126,9 @@ if(DO_TESTS)
     
     add_executable(min_snap_test2 extra/tests/min_snap_traj_test2.cpp)
     target_link_libraries(min_snap_test2 full_qpoases Eigen3::Eigen)
+    
+    add_executable(compare_traj_test extra/tests/compare_traj_test.cpp)
+    target_link_libraries(compare_traj_test Eigen3::Eigen)
 endif()
 
 include_directories(include ${catkin_INCLUDE_DIRS})

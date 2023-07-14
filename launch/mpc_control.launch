@@ -5,14 +5,12 @@
     <arg name="cam_name" default="/pinhole_camera" />
     <arg name="img_topic" default="image_raw" />
     <arg name="traj_name" default="horiz_search" />
-    <arg name="only_vio" default="false" />     <!-- if true, send vio directly as state estimate, instead of using PX4 EKF2 -->
     <arg name="debug_mpc" default="false" />
     
     <!-- Controller node -->
     <node pkg="quad_control" name="mavros_cmd_node" type="mavros_cmd_node" output="screen" required="true">
         <param name="ctrl_mode" type="string" value="mpc" />
         <param name="enable_sim" type="bool" value="$(arg simulation)" />
-        <param name="direct_from_vio" type="bool" value="$(arg only_vio)" />
     </node>
 
     <!-- MPC node -->
@@ -20,7 +18,6 @@
     <arg name="launch_prefix" value="" unless="$(arg debug_mpc)" />
     <node pkg="quad_control" name="mpc_node" type="mpc_node" output="screen" required="true" launch-prefix="$(arg launch_prefix)">
         <param name="search_traj_file" type="string" value="$(find quad_control)/extra/traj/traj_$(arg traj_name).csv" />
-        <param name="direct_from_vio" type="bool" value="$(arg only_vio)" />
         <param name="enable_sim" type="bool" value="$(arg simulation)" />
     </node>
 

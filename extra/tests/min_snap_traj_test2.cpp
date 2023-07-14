@@ -16,7 +16,7 @@ using namespace std;
 void saveMatrix(string fileName, const Eigen::MatrixXd& matrix){
     //https://eigen.tuxfamily.org/dox/structEigen_1_1IOFormat.html
     const static Eigen::IOFormat CSVFormat(Eigen::FullPrecision, Eigen::DontAlignCols, ",", "\n");
- 
+
     ofstream file(fileName);
     if (file.is_open()){
         file << matrix.format(CSVFormat);
@@ -49,14 +49,14 @@ void showDuration(string message, chrono::duration<double> t_diff){
 
 int main(int argc, char **argv)
 {
-    
+
 // ------------------ Initial solve of the search path trajectory ------------------ //
-    
+
     // keyframes
     // - Fix x, y, z and/or yaw at a desired time. Can fix just x, or just z and yaw, for example.
     // - Keyframes lie at meeting point between two polynomial segments
     // Fix at position pos at time times[time_ind]
-    
+
     // For horizontal sweep search path
     int numHlines = 5;          // number of staight horizontal lines
     int numKeys = numHlines*2 - 2;  // number of 3D keypoints minus initial and final positions
@@ -80,12 +80,12 @@ int main(int argc, char **argv)
         Keyframes.push_back(k2y);
         Keyframes.push_back(k2z);
     }
-    
+
     // boundary conditions
     MinSnapTraj::Matrix24d p0_bounds; // p=0 means 0th derivative
     // pos/yaw:   x     y    z   yaw
-    p0_bounds <<  0.0,  0.0, zInit, 0.0, // initial
-                 xWid, yWid, zInit, 0.0; // final
+    p0_bounds <<  0.0,  0.0, zInit, 3.14, // initial
+                 xWid, yWid, zInit, 3.14; // final
 
     MinSnapTraj::Matrix24d p1_bounds; // p=0 means 0th derivative
     // velocity: vx   vy   vz   vyaw
@@ -101,20 +101,20 @@ int main(int argc, char **argv)
     search_BC.push_back(p0_bounds);
     search_BC.push_back(p1_bounds);
     search_BC.push_back(p2_bounds);
-    
+
     // Parameters
     int search_order = 5;         // order of piecewise polynomials (must be >= 4 for min snap) (works well when order >= numFOVtimes)
-    
+
     double spd = 1; // rough speed estimate. units: m/s
     double dtHlines = xWid/spd;
     double dtVlines = 2.0*(yWid/(numHlines-1))/spd;
-    
+
     double T = numHlines*dtHlines + (numHlines-1)*dtVlines;
-    
+
     cout << "dtHlines: " << dtHlines << endl;
     cout << "dtVlines: " << dtVlines << endl;
     cout << "       T: " << T << endl;
-    
+
     vector<double> search_times; // times for the polynomial segments
     search_times.push_back(0.0);
     double curr_time = 0.0;
@@ -125,21 +125,21 @@ int main(int argc, char **argv)
         search_times.push_back(curr_time);
     }
     search_times.push_back(T);
-    
+
     // No FOV constraints
     MinSnapTraj::FOVdata no_fov_data;
     no_fov_data.do_fov = false;
-    
+
     MinSnapTraj search_prob(search_order, search_times, search_BC, Keyframes, no_fov_data);  // create object
-    
+
     chrono::steady_clock::time_point tic, toc;                // time the solver
     tic = chrono::steady_clock::now();
-    
+
     MinSnapTraj::TrajSolution search_sol = search_prob.solveTrajectory();   // solve
-    
+
     toc = chrono::steady_clock::now();
     showDuration("Search solve time: ", toc - tic);
-    
+
 // ------------------ Analyze/save trajectory ------------------ //
     double time_step = 0.1;
     int numIntersampleTimes = 10;
@@ -148,29 +148,26 @@ int main(int argc, char **argv)
     //vector<double> tspan = MinSnapTraj::linspace(0.0, T, 50); // time points to evaluate the trajectory
     //Eigen::MatrixXd eval_flat = prob.FlatOutputTraj(sol.coeffs, tspan);
     Eigen::MatrixXd eval_quat = search_prob.QuaternionTraj(search_sol.coeffs, tspan);
-    
+
     // Print trajectory data
     //   For more advanced printing: https://eigen.tuxfamily.org/dox/structEigen_1_1IOFormat.html
     //cout << "---- Trajectory: t, x, y, z, yaw, vx, vy, vz, vyaw, ax, ay, az, ayaw, sx, sy, sz, syaw ----" << endl;
     //cout << eval << endl;
-    
+
     // Save trajectory in a file within dir_path directory (i.e. extra/tests folder)
     string file_path = __FILE__;
     string dir_path = file_path.substr(0, file_path.rfind("min_snap_traj_test2.cpp")); // get directory containing source file
     string data_dir = "test_data/";
     ghc::filesystem::create_directories(dir_path + data_dir); // create new directory for data
-    
+
     string traj_file = "test_traj.csv";
     //saveMatrix(dir_path + data_dir + traj_file, eval_flat);
     saveMatrix(dir_path + data_dir + traj_file, eval_quat);
-    
+
     string key_file = "keyframes.csv";
     saveKeyframes(dir_path + data_dir + key_file, Keyframes);
-    
+
     cout << "Trajectory data saved at " << endl << dir_path + data_dir << endl << endl;
-    
+
     return 0;
 }
-
-
-

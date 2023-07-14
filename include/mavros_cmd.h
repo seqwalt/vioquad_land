@@ -42,7 +42,6 @@ class MavrosCmd {
         ros::Subscriber mode_sub;
         ros::Subscriber pose_sub;
         ros::Subscriber vel_sub;
-        ros::Subscriber vio_sub;
         ros::Subscriber traj_sub;
 
         ros::Publisher pos_pub;
@@ -203,16 +202,6 @@ class MavrosCmd {
         // Required for feedback control of quadcopter
         void mavVelCallback(const geometry_msgs::TwistStamped &msg) {
             curVel = msg.twist.linear;
-        }
-        
-        void vioOdomCallback(const nav_msgs::Odometry &msg) {
-            if (!received_home_pose) {
-                received_home_pose = true;
-                home_pose = msg.pose.pose;
-                ROS_INFO_STREAM("Home pose initialized to: " << home_pose);
-            }
-            curPose = msg.pose.pose;
-            curVel = msg.twist.twist.linear;
         }
 
         // Control Inputs are sent, after recieving reference setpoint

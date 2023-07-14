@@ -43,28 +43,29 @@ class MinSnapTraj {
 
         // Constructor
         MinSnapTraj(int order, vector<double> time_in, vectOfMatrix24d& bounds_in, vector<keyframe> keys_in, FOVdata fov){
-            // constructor for solving a minsnap problem
             // Initialize
             assert(order >= 4);
-            n = order;                    // polynomial order
-            time = time_in;               // time points
-            m = time.size() - 1;          // number of time segments
+            n = order;                              // polynomial order
+            offset_time = time_in;                  // offset time points
+            time = time_in;
+            for (double& t : time) t -= time_in[0]; // remove offset
+            m = time.size() - 1;                    // number of time segments
             
             do_fov_constraint = fov.do_fov;
             if (do_fov_constraint){
-                numVars = m*numFlatOut*(n+1) + 2; // number of desicion variables (with 2 slack variables)
+                numVars = m*numFlatOut*(n+1) + 2;   // number of desicion variables (with 2 slack variables)
                 l = fov.l;
                 alpha_x = fov.alpha_x;
                 alpha_y = fov.alpha_y;
             } else {
-                numVars = m*numFlatOut*(n+1); // number of desicion variables (no slack variables)
+                numVars = m*numFlatOut*(n+1);       // number of desicion variables (no slack variables)
             }
             
             H = buildHessian();
             g = buildGvector();
             
-            bounds = bounds_in;           // boundary conditions
-            keys = keys_in;               // keyframes
+            bounds = bounds_in;                     // boundary conditions
+            keys = keys_in;                         // keyframes
         }
         
         TrajSolution solveTrajectory() {
@@ -73,11 +74,11 @@ class MinSnapTraj {
               
 // -------- Solve the QP -------- //
             // QP problem setup
-            double* nullP = NULL;               // null pointer for lb and ub
-            int nWSR = 10000;                     //  maximum number of working set recalculations to be performed during the initial homotopy
+            double* nullP = NULL;   // null pointer for lb and ub
+            int nWSR = 10000;       //  maximum number of working set recalculations to be performed during the initial homotopy
             
-            qpOASES::QProblem testQP(numVars, numCons, qpOASES::HST_SEMIDEF);     // specify QP params (H is semidefinite)
-            testQP.setPrintLevel(qpOASES::PL_LOW);                       // Just print errors
+            qpOASES::QProblem testQP(numVars, numCons, qpOASES::HST_SEMIDEF);   // specify QP params (H is semidefinite)
+            testQP.setPrintLevel(qpOASES::PL_LOW);                              // Just print errors
             
 //             qpOASES::Options options;
 //             options.setToReliable();
@@ -92,7 +93,12 @@ class MinSnapTraj {
             cout << endl << "Number of constraints: " << numCons << endl;
             cout << "Number of decision variables: " << numVars << endl;
 
-            cout << "Segment times (seconds): ";
+            cout << "Input segment times (seconds): ";
+            cout << "[";
+            for(size_t i = 0; i < offset_time.size()-1; i++) cout << offset_time[i] << ", ";
+            cout << offset_time[offset_time.size()-1] << "]" << endl;
+            
+            cout << "Solver segment times (seconds): ";
             cout << "[";
             for(size_t i = 0; i < time.size()-1; i++) cout << time[i] << ", ";
             cout << time[time.size()-1] << "]" << endl;
@@ -160,15 +166,17 @@ class MinSnapTraj {
         
         //  Input: coeffs output by solveTrajectory (i.e. rows correspond to polynomial segments), and a vector of times tspan
         // Output: matrix with each row: time, x, y, z, yaw, vx, vy, vz, vyaw, ax, ay, az, ayaw, jx, jy, jz, jyaw
-        Eigen::MatrixXd FlatOutputTraj(const vector<vector<double>>& coeffs, const vector<double>& tspan){
-            assert(tspan[0] >= time[0] && tspan.back() <= time[m]);
+        Eigen::MatrixXd FlatOutputTraj(const vector<vector<double>>& coeffs, const vector<double>& offset_tspan){            
+            assert(offset_tspan[0] >= offset_time[0] && offset_tspan.back() <= offset_time[m]);
+            vector<double> tspan = offset_tspan;
+            for (double& t : tspan) t -= offset_time[0]; // remove offset
             
             Eigen::MatrixXd eval = Eigen::MatrixXd::Zero(tspan.size(), 17); // row: t, x, y, z, yaw, vx, vy, vz, vyaw, ax, ay, az, ayaw, jx, jy, jz, jyaw
             
             vector<int> seg_ind = polySegmentInds(tspan); // get vector of polynomial segments, given vector of times 
             double time_term;
             for(size_t ti = 0; ti <= tspan.size()-1; ti++){ // iterate over tspan times
-                eval(ti, 0) = tspan[ti];
+                eval(ti, 0) = offset_tspan[ti];
                 for(int p = 0; p <= 3; p++){      // iterate over orders (pos is p=0, vel is p=1, acc is p=2, jerk is p=3)
                     for(int i = p; i <= n; i++){  // sum over polynomial terms for given order
                         time_term = pow(tspan[ti], i-p) * (fact(i)/fact(i-p));
@@ -185,17 +193,19 @@ class MinSnapTraj {
         
         //  Input: coeffs output by solveTrajectory (i.e. rows correspond to polynomial segments), and a vector of times tspan
         // Output: matrix with each row: time, x, y, z, vx, vy, vz, qw, qx, qy, qz
-        Eigen::MatrixXd QuaternionTraj(const vector<vector<double>>& coeffs, const vector<double>& tspan){
-            assert(tspan[0] >= time[0] && tspan.back() <= time[m]);
+        Eigen::MatrixXd QuaternionTraj(const vector<vector<double>>& coeffs, const vector<double>& offset_tspan){
+            assert(offset_tspan[0] >= offset_time[0] && offset_tspan.back() <= offset_time[m]);
+            vector<double> tspan = offset_tspan;
+            for (double& t : tspan) t -= offset_time[0]; // remove offset
             vector<int> seg_ind = polySegmentInds(tspan); // get vector of polynomial segments, given vector of times 
             
             Eigen::MatrixXd eval = Eigen::MatrixXd::Zero(tspan.size(), 11); // time, x, y, z, vx, vy, vz, qw, qx, qy, qz
             double time_term, ax, ay, az, yaw;
-            Eigen::Quaterniond quat;
+            Eigen::Quaterniond quat, quat_prev;
             Eigen::Vector3d acc;
-
+            
             for(size_t ti = 0; ti <= tspan.size()-1; ti++){ // iterate over tspan times
-                eval(ti, 0) = tspan[ti];
+                eval(ti, 0) = offset_tspan[ti];
                 // Position and Velocity
                 for(int p = 0; p <= 1; p++){      // iterate over orders (pos is p=0, vel is p=1)
                     for(int i = p; i <= n; i++){  // sum over polynomial terms for given order
@@ -224,10 +234,17 @@ class MinSnapTraj {
                 // Compute Quaternion from accleration and yaw
                 acc << ax, ay, az;
                 quat = acc2quaternion(acc, yaw);
-                eval(ti, 7) = -quat.coeffs().w();
-                eval(ti, 8) = -quat.coeffs().x();
-                eval(ti, 9) = -quat.coeffs().y();
-                eval(ti,10) = -quat.coeffs().z();
+                
+                // Ensure continuity of quaternion trajectory (fixes acado MPC yaw issues)
+                if (ti != 0 && quatsDiffSign(quat, quat_prev)){
+                    quat.coeffs() *= -1; // flip signs
+                }
+                quat_prev = quat;
+                
+                eval(ti, 7) = quat.coeffs().w();
+                eval(ti, 8) = quat.coeffs().x();
+                eval(ti, 9) = quat.coeffs().y();
+                eval(ti,10) = quat.coeffs().z();
             }
             
             return eval;
@@ -292,7 +309,8 @@ class MinSnapTraj {
         int numCons;                // number of constraints
         int n;                      // order of the polynomials
         int m;                      // number of time intervals
-        vector<double> time;        // time points
+        vector<double> time;        // time points, starting at 0.0
+        vector<double> offset_time; // time points with offset (may not start at 0.0)
         const int numFlatOut = 4;   // x, y, z, yaw
         vectOfMatrix24d bounds;     // boundary conditions
         vector<keyframe> keys;      // keyframes
@@ -723,6 +741,16 @@ class MinSnapTraj {
             rotmat << xb_des(0), yb_des(0), zb_des(0), xb_des(1), yb_des(1), zb_des(1), xb_des(2), yb_des(2), zb_des(2);
             quat = Eigen::Quaterniond(rotmat);
             return quat; // access with quat.coeffs().w() etc.
+        }
+        
+        // Check if two nearby quaternions (e.g. same rotations) use opposite signage
+        // E.g. quatsDiffSign(q1, q2) is false if
+        //      q1 = (0, -0.707, 0, 0.707), q2 = (0, 0.707, 0, -0.707)
+        bool quatsDiffSign(const Eigen::Quaterniond& q1, const Eigen::Quaterniond& q2) {
+            auto coeffs = q1.coeffs() + q2.coeffs();
+            double abs_sum = abs(coeffs.w()) + abs(coeffs.x()) + abs(coeffs.y()) + abs(coeffs.z());
+            double eps = 0.5;
+            return abs_sum < eps;
         }
 };
 

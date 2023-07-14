@@ -36,6 +36,8 @@
 #include "min_snap_traj.h"
 #include <iomanip>
 #include <chrono>
+#include "filesystem.hpp"
+#include <ctime>
 
 // for mpc
 #include "acado_common.h"
@@ -72,16 +74,13 @@ class MPC {
         
         ros::Subscriber pose_sub;
         ros::Subscriber vel_sub;
-        ros::Subscriber vio_sub;
-        ros::Subscriber vio_sub_local_vel;
         ros::Subscriber imu_sub;
         ros::Subscriber apriltag_sub;
         ros::Timer mpc_timer;
         ros::Timer path_timer;
         
         quad_control::FlatOutputs ref;
-        unsigned int iter = 0;
-        bool sim_enable;
+        bool sim_enable; // param
 
         // MPC class constructor
         MPC(const std::string& searchTrajFileName){
@@ -104,7 +103,7 @@ class MPC {
             has_landed = false;            
             traj_gen_time = chrono::steady_clock::now();
             prev_time2land = 0;
-            first_april_tag = true;
+            //first_april_tag = true; // TODO: for Apriltag as state est
             tag_visible = false;
             
             // Prepare first step
@@ -124,10 +123,14 @@ class MPC {
 
         // Start ROS timer for MPC control (mpcCallback), upon request
         bool streamMpcCallback(std_srvs::Trigger::Request &req, std_srvs::Trigger::Response &res){
+            // Align first trajectory quaternion with current quadcopter quaternion
+            Eigen::Quaterniond first_traj_quat(traj(0,7), traj(0,8), traj(0,9), traj(0,10));
+            Eigen::Quaterniond curQuat = msg2quaternion(curPose.orientation);
+            if (quatsDiffSign(first_traj_quat, curQuat)) flipQuatSigns(traj);
+            
             mpc_timer.start();  // start publishing the MPC control values
             if(mpc_timer.hasStarted()){
                 res.success = true;
-                //ROS_INFO_STREAM("Publishing MPC control inputs.");
             }
             return true;
         }
@@ -136,8 +139,10 @@ class MPC {
         void viewPathCallback(const ros::TimerEvent &event){
             // Publish reference trajectory for visualization
             ref_total_pub.publish(mpcTotalRef);
-            // Publish estimated AprilTag pose in map/world frame
-            tag_pub.publish(tagPose);
+            if (tag_visible){
+                // Publish estimated AprilTag pose in map/world frame
+                tag_pub.publish(tagPose);
+            }
             
             if(!first_mpc_call){
                 // Publish estimated path for visualization (vio or ekf2, depending on direct_from_vio param)
@@ -159,12 +164,11 @@ class MPC {
         void mpcCallback(const ros::TimerEvent &event){
             if (!near_landing_pad){
                 // Not close enough to landing pad to turn off motors
-                //acado_tic( &t );
-                // ref.reached_goal = false;
+                //acado_tic( &t ); // for timing mpc
 
+                // ------------------ Update Acado Variables ------------------ //
+                
                 // Current quadcopter state
-                static int callback_iter = 0;
-
                 acadoVariables.x0[0] = curPose.position.x;
                 acadoVariables.x0[1] = curPose.position.y;
                 acadoVariables.x0[2] = curPose.position.z;
@@ -176,22 +180,25 @@ class MPC {
                 acadoVariables.x0[8] = curVel.y;
                 acadoVariables.x0[9] = curVel.z;
                 
+                // -------- TODO fix this duration and interp stuff (needs re-write)
                 double duration;
                 if (first_mpc_call){
                     first_mpc_call = false;
                     mpc_start_time = ros::Time::now().toSec();
                     duration = 0.0;
                 } else {
-                    duration = min(ros::Time::now().toSec() - mpc_start_time, traj(traj_num_times-1,0));
+                    duration = min(ros::Time::now().toSec() - mpc_start_time, traj(traj.rows()-1,0)-traj(0,0) );
                 }
                 
                 int row1, row2;
                 int start_row = (int)floor(duration/traj_time_step);
-                double s = min(max((duration - traj(start_row,0))/traj_time_step, 0.0), 1.0); // interpolation parameter
+                double s = min(max((duration - (traj(start_row,0)-traj(0,0)) )/traj_time_step, 0.0), 1.0); // interpolation parameter
+                // --------
+                
                 for (int i = 0; i < N; ++i){ // iterate over time steps within horizon
                     // Update the references
-                    row1 = min(traj_num_times-1, start_row + i*numIntersampleTimes);
-                    row2 = min(traj_num_times-1, start_row + i*numIntersampleTimes + 1);
+                    row1 = min((int)traj.rows()-1, start_row + i*numIntersampleTimes);
+                    row2 = min((int)traj.rows()-1, start_row + i*numIntersampleTimes + 1);
                     acadoVariables.y[i * NY + 0] = (float)lerp(traj(row1, 1), traj(row2, 1), s); // x
                     acadoVariables.y[i * NY + 1] = (float)lerp(traj(row1, 2), traj(row2, 2), s); // y
                     acadoVariables.y[i * NY + 2] = (float)lerp(traj(row1, 3), traj(row2, 3), s); // z
@@ -209,8 +216,8 @@ class MPC {
                     acadoVariables.y[i * NY + 14] = 0; // wy
                     acadoVariables.y[i * NY + 15] = 0; // wz
                 }
-                row1 = min(traj_num_times-1, start_row + N*numIntersampleTimes);
-                row2 = min(traj_num_times-1, start_row + N*numIntersampleTimes + 1);
+                row1 = min((int)traj.rows()-1, start_row + N*numIntersampleTimes);
+                row2 = min((int)traj.rows()-1, start_row + N*numIntersampleTimes + 1);
                 acadoVariables.yN[0] = (float)lerp(traj(row1, 1), traj(row2, 1), s); // x
                 acadoVariables.yN[1] = (float)lerp(traj(row1, 2), traj(row2, 2), s); // y
                 acadoVariables.yN[2] = (float)lerp(traj(row1, 3), traj(row2, 3), s); // z
@@ -223,18 +230,16 @@ class MPC {
                 acadoVariables.yN[9] = (float)lerp(traj(row1, 6), traj(row2, 6), s); // vz
                 acadoVariables.yN[10] = 0; // horiz landmark projection
                 acadoVariables.yN[11] = 0; // vert landmark projection
-
-                callback_iter += 1;
-                //std::cout << "callback iteration: " << callback_iter << std::endl;
-
+                
+                // ------------------ MPC optimization ------------------ //
                 int iter, status;
-                // MPC optimization (real-time iteration (RTI) loop)
+                // Real-time iteration (RTI) loop
                 for(iter = 0; iter < NUM_STEPS; ++iter){
                     // Perform the feedback step
                     status = acado_feedbackStep();
 
                     if (status != 0){
-                        std::cout << "Iteration:" << iter << ", QP problem! QP status: " << status << std::endl;
+                        cout << "Iteration:" << iter << ", QP problem! QP status: " << status << endl;
                         ACADO_MSG::showStatus(status);
                         ros::shutdown();
                         break;
@@ -249,6 +254,7 @@ class MPC {
                 wx = acadoVariables.u[1];
                 wy = acadoVariables.u[2];
                 wz = acadoVariables.u[3];
+                
             } else {
                 // Near the landing pad, so set control inputs to zero
                 T = 0.0;
@@ -268,8 +274,8 @@ class MPC {
             mpc_pub.publish(mpcInputs); // set attitude, body rate and thrust to mavros
             
             //acado_printDifferentialVariables();
-            //acado_printControlVariables();
-            //float te = acado_toc( &t );
+            //acado_printControlVariables();        // debugging info
+            //float te = acado_toc( &t );           // for timing mpc
             //cout << "mpcCallback time: " << te << "sec" << endl;
         }
 
@@ -289,17 +295,10 @@ class MPC {
             odomMsgSelector(data);
         }
         
-        void vioOdomCallback(const nav_msgs::Odometry &msg){
-            OdomData data;
-            data.source = ODOM_BY_VIO;
-            data.pose = msg.pose.pose;
-            data.velocity = msg.twist.twist.linear;
-            odomMsgSelector(data);
-        }
-        
         // Pass along current raw mav imu data, wrt body frame.
         void mavIMUCallback(const sensor_msgs::Imu &msg) {
-            curImuAcc = msg.linear_acceleration; // linear acceleration in imu body frame
+            curLinAcc = msg.linear_acceleration; // linear acceleration in imu body frame
+            curYawVel = msg.angular_velocity.z;
         }
         
         // Compute AprilTag pose in World frame (compute transformation T_WA)
@@ -310,7 +309,7 @@ class MPC {
                 // Form T_WB (load from state estimation: mocap, VIO, etc.)
                 Eigen::Isometry3d T_WB = Eigen::Isometry3d::Identity();
                 Eigen::Vector3d tran_WB(curPose.position.x, curPose.position.y, curPose.position.z); // translation part
-                Eigen::Quaterniond quat_WB(curPose.orientation.w, curPose.orientation.x, curPose.orientation.y, curPose.orientation.z); // [w, x, y, z] rotation part
+                Eigen::Quaterniond quat_WB = msg2quaternion(curPose.orientation); // [w, x, y, z] rotation part
                 T_WB.translate(tran_WB);
                 T_WB.rotate(quat_WB);
                 
@@ -330,7 +329,7 @@ class MPC {
                 // Compute T_CA (transformation from down-facing camera frame to AprilTag frame)
                 geometry_msgs::Pose AprilTagPose_Cam = msg.detections[0].pose.pose.pose; // pose of AprilTag in camera frame
                 Eigen::Vector3d tran_CA(AprilTagPose_Cam.position.x, AprilTagPose_Cam.position.y, AprilTagPose_Cam.position.z); // translation part
-                Eigen::Quaterniond quat_CA(AprilTagPose_Cam.orientation.w, AprilTagPose_Cam.orientation.x, AprilTagPose_Cam.orientation.y, AprilTagPose_Cam.orientation.z); // rotation part
+                Eigen::Quaterniond quat_CA = msg2quaternion(AprilTagPose_Cam.orientation); // rotation part
                 Eigen::Isometry3d T_CA = Eigen::Isometry3d::Identity();
                 T_CA.translate(tran_CA);
                 T_CA.rotate(quat_CA); // transformation matrix representing the AprilTag in the camera frame
@@ -341,22 +340,23 @@ class MPC {
                 tagPos = T_WA.translation();
                 Eigen::Matrix3d tagRot = T_WA.rotation();
                 Eigen::Quaterniond tagQuat = Eigen::Quaterniond(tagRot);
-                tagYaw = quaternion2yaw(tagQuat);
-                
+                Eigen::Quaterniond quatDiff = quat_WB.inverse() * tagQuat;
+                yawDiff = quaternion2yaw(quatDiff); // yaw difference with correct sign
+                 
                 // Fill tagPose
                 geometry_msgs::PoseStamped tagPoseTemp;
                 tagPoseTemp.pose.position.x = tagPos(0);
                 tagPoseTemp.pose.position.y = tagPos(1);
                 tagPoseTemp.pose.position.z = tagPos(2);
-                tagPoseTemp.pose.orientation.w = tagQuat.coeffs()(3);
-                tagPoseTemp.pose.orientation.x = tagQuat.coeffs()(0);
-                tagPoseTemp.pose.orientation.y = tagQuat.coeffs()(1);
-                tagPoseTemp.pose.orientation.z = tagQuat.coeffs()(2);
+                tagPoseTemp.pose.orientation.w = tagQuat.coeffs().w();
+                tagPoseTemp.pose.orientation.x = tagQuat.coeffs().x();
+                tagPoseTemp.pose.orientation.y = tagQuat.coeffs().y();
+                tagPoseTemp.pose.orientation.z = tagQuat.coeffs().z();
                 tagPoseTemp.header.frame_id = "map";
                 tagPoseTemp.header.stamp = ros::Time::now();
                 tagPose = tagPoseTemp;
                 
-                // TODO use aprilTag as state estimation:
+                // TODO for Apriltag as state est
                 // Use AprilTag as position estimation of quadcopter
 //                 if (first_april_tag){
 //                     first_april_tag = false;
@@ -376,13 +376,13 @@ class MPC {
                 // Gerenerate landing trajectory
                 double h_land = tran_CA[2]; // height above landing pad
                 double vel_base = 0.43;     // average speed if curVel.z = 0
-                double scale_val = 0.45;    // increasing scale_val causes shorter land times when curVel.z < 0, and longer times when curVel.z > 0
+                double scale_val = 0.35;    // 0.45 increasing scale_val causes shorter land times when curVel.z < 0, and longer times when curVel.z > 0
                 double avg_spd = abs(vel_base*exp(-scale_val*min(max(curVel.z, -1.0), 1.0))); // average spd (m/s)
                 double time2land = h_land/avg_spd; // time to land
                 chrono::steady_clock::time_point curr_time = chrono::steady_clock::now();
                 chrono::duration<double> time_since_last = chrono::duration_cast<chrono::duration<double>>(curr_time - traj_gen_time);
                 bool doFOV = true;  // apply FOV constraints to min-snap traj generation
-                if ((double)time_since_last.count() > 0.5*prev_time2land
+                if ((double)time_since_last.count() > 0.6*prev_time2land
                     //&& time_land > 0.5
                     && checkFOVFeasible(doFOV))
                 {
@@ -393,27 +393,30 @@ class MPC {
                     traj = genLandingTraj(numIntersampleTimes, time2land, doFOV); // generate trajectory. each row has t, x, y, z, vx, vy, vz, qw, qx, qy, qz
                     initAcadoVariables();
                     first_mpc_call = true; // reset for new trajectory
+                    
+                    eigen2PathMsg(traj, mpcTotalRef); // update ROS Trajectory message
+                    //saveTraj("landing_traj", traj);   // save trajectory to file TODO: make bool ros param for whether or not to save
                 }
             } else {
                 // AprilTag is not detected, reset
-                first_april_tag = true;
+                // first_april_tag = true; // TODO: for Apriltag as state est
             }
         }
 
     private:
         // Pose data
         double curYaw;
-        double tagYaw;
+        double yawDiff;
+        double curYawVel;
         geometry_msgs::Pose curPose;
         geometry_msgs::Vector3 curVel;
-        geometry_msgs::Vector3 curImuAcc;
+        geometry_msgs::Vector3 curLinAcc;
         geometry_msgs::PoseStamped tagPose;
         Eigen::Vector3d tagPos;
         enum OdomSource {
             APRIL_TAG,
             POSE_BY_EKF2,
-            VEL_BY_EKF2,
-            ODOM_BY_VIO
+            VEL_BY_EKF2
         };
         struct OdomData {
             OdomSource source;
@@ -437,7 +440,6 @@ class MPC {
         Eigen::MatrixXd traj;
         int numIntersampleTimes;
         double traj_time_step;
-        int traj_num_times;
         chrono::steady_clock::time_point traj_gen_time;
         struct MinSnapData{
             MinSnapTraj::vectOfMatrix24d bounds;
@@ -451,20 +453,19 @@ class MPC {
         const double land_height = 0.1; // stop motors when this high (m) above landing pad
         bool has_landed;
         Eigen::Isometry3d T_WA_initial;
-        bool first_april_tag;
+        //bool first_april_tag; // TODO: for Apriltag as state est
         bool tag_visible;
         
         // Initialize the acado variables
         void initAcadoVariables(){
             // generate and store trajectory
             traj_time_step = traj(1,0) - traj(0,0);
-            traj_num_times = traj.rows();
             
             // Check if trajectory is too short
-            if (traj_num_times < N*numIntersampleTimes + 1){
-                cout << endl << "traj_num_times:        " << traj_num_times << endl;
+            if (traj.rows() < N*numIntersampleTimes + 1){
+                cout << endl << "traj.rows():        " << traj.rows() << endl;
                 cout << "N*numIntersampleTimes: " << N*numIntersampleTimes << endl;
-                ROS_ERROR_STREAM("Need traj_num_times > N*numIntersampleTimes. Shutting down node ...");
+                ROS_ERROR_STREAM("Need traj.rows() > N*numIntersampleTimes. Shutting down node ...");
                 ros::shutdown(); 
             }
             
@@ -631,7 +632,7 @@ class MPC {
                         
             // ------------------ Load ROS Trajectory message ------------------ //
             numIntersampleTimes = 10;
-            Eigen2PathMsg(eval, mpcTotalRef);
+            eigen2PathMsg(eval, mpcTotalRef);
             
             return eval;
         }
@@ -643,7 +644,8 @@ class MPC {
             int numIntervals = 1;  // number of time intervals (must be >= 1) (setting to 1 is fine if not using keyframes, and only using FOV constraints)
             double d_time = 0.1; // discretization time for the mpc
             double total_time = floor(totalTime*((double)numIntersampleTimes/d_time)+0.5)/((double)numIntersampleTimes/d_time); // rounding
-            vector<double> times = MinSnapTraj::linspace(0.0, total_time, numIntervals + 1); // times for the polynomial segments
+            double ros_start = ros::Time::now().toSec();
+            vector<double> times = MinSnapTraj::linspace(ros_start, total_time + ros_start, numIntervals + 1); // times for the polynomial segments
             
             // ------------------ Prepare the solver (boundary conditions etc.) ------------------ //
             MinSnapData data = prepLandingSolver(doFOV);
@@ -661,15 +663,19 @@ class MPC {
 
             // ------------------ Save trajectory in Eigen matrix ------------------ //
             int num_times = (int)(1.0 + (double)numIntersampleTimes*(total_time/d_time));
-            vector<double> tspan = MinSnapTraj::linspace(0.0, total_time, num_times); // time points to evaluate the trajectory
+            vector<double> tspan = MinSnapTraj::linspace(ros_start, total_time + ros_start, num_times); // time points to evaluate the trajectory
             Eigen::MatrixXd eval = prob.QuaternionTraj(sol.coeffs, tspan);
+            
+            // Align first trajectory quaternion with current quadcopter quaternion
+            Eigen::Quaterniond first_quat(eval(0,7), eval(0,8), eval(0,9), eval(0,10));
+            Eigen::Quaterniond curQuat = msg2quaternion(curPose.orientation);
+            if (quatsDiffSign(first_quat, curQuat)) flipQuatSigns(eval);
             
             // Concatonate extra rows if totalT is shorter than mpc_time_horizon
             if (total_time <= mpc_time_horizon){
-                double start_time = total_time + (d_time/(double)numIntersampleTimes); // need one sample past default time horizon
-                //int num_times_extra = (int)(1.0 + (double)numIntersampleTimes*((mpc_time_horizon - start_time)/d_time));
+                double start_time = tspan.back() + (d_time/(double)numIntersampleTimes); // need one sample past default time horizon
                 int num_times_extra = (int)(mpc_time_horizon*((double)numIntersampleTimes/d_time)) + 1 - num_times;
-                vector<double> tspan_extra = MinSnapTraj::linspace(start_time, mpc_time_horizon, num_times_extra);
+                vector<double> tspan_extra = MinSnapTraj::linspace(start_time, ros_start + mpc_time_horizon, num_times_extra);
                 Eigen::MatrixXd eval_extra(tspan_extra.size(), eval.cols());
                 for (size_t i = 0; i < tspan_extra.size(); i++){
                     eval_extra.row(i) = eval.row(eval.rows()-1);
@@ -677,44 +683,31 @@ class MPC {
                 }
                 Eigen::MatrixXd eval_total(eval.rows() + eval_extra.rows(), eval.cols());
                 eval_total << eval, eval_extra;  // concatenate both matrices
-
-                // ------------------ Load ROS Trajectory message ------------------ //
-                Eigen2PathMsg(eval_total, mpcTotalRef);
-                return eval_total;
+                eval = eval_total;
             }
             
-            // ------------------ Load ROS Trajectory message ------------------ //
-            Eigen2PathMsg(eval, mpcTotalRef);
             return eval;
         }
         
         // Prepare boundary conditions and other data for trajectory generation
         MinSnapData prepLandingSolver(bool doFOV) {
-            // ------------------ Get acceleration in world frame ------------------ //
-            Eigen::Vector3d imuAcc(curImuAcc.x, curImuAcc.y, curImuAcc.z);  // convert acc from message to Eigen 3D vector
-            geometry_msgs::Quaternion curQuat = curPose.orientation;
-            Eigen::Quaterniond quadQuat(curQuat.w, curQuat.x, curQuat.y, curQuat.z);  // convert quadQuat from message to Eigen::Quateniond
-            Eigen::Vector3d accW = quadQuat * imuAcc - Eigen::Vector3d(0.0, 0.0, 9.81);  // rotate imuAcc by quadQuat to get acc wrt world frame, using Eigen overloaded "*" syntax, then account for gravity term
-            // ------------------ Get velocity in world frame ------------------ //
-            Eigen::Vector3d velBody(curVel.x, curVel.y, curVel.z);
-            Eigen::Vector3d velW = quadQuat * velBody;
-            
             // ------------------ Boundary conditions ------------------ //
             MinSnapTraj::Matrix24d p0_bounds; // p=0 means 0th derivative
             geometry_msgs::Point curPos = curPose.position;
+            double tagYaw = curYaw + yawDiff;
             // pos/yaw:  x          y          z          yaw
             p0_bounds << curPos.x,  curPos.y,  curPos.z,  curYaw, // initial
-                         tagPos(0) - 0.108*cos(tagYaw), tagPos(1) - 0.108*sin(tagYaw), tagPos(2), tagYaw; // final TODO: why does yaw change direction after initial trajectory generation?
+                         tagPos(0) - 0.108*cos(tagYaw), tagPos(1) - 0.108*sin(tagYaw), tagPos(2), tagYaw; // final
 
             MinSnapTraj::Matrix24d p1_bounds; // p=1 means 1st derivative
             // velocity: vx   vy   vz   vyaw
-            p1_bounds << velW(0), velW(1), velW(2), 0.0, // initial
+            p1_bounds << curVel.x, curVel.y, curVel.z, curYawVel, // initial
                         0.0, 0.0, 0.0, 0.0; // final
 
             MinSnapTraj::Matrix24d p2_bounds; // p=2 means 2nd derivative
             // accel:    ax         ay      az      ayaw
-            p2_bounds << accW(0), accW(1), accW(2), 0.0, // initial
-                        0.0, 0.0, 0.0, 0.0; // final
+            p2_bounds << curLinAcc.x, curLinAcc.y, curLinAcc.z-9.81, 0.0, // initial
+                        0.0, 0.0, 1.0, 0.0; // final
 
             MinSnapData data;
             data.bounds.push_back(p0_bounds);
@@ -727,8 +720,8 @@ class MPC {
             // ------------------ FOV data ------------------ //
             data.fov_data.do_fov = doFOV;
             data.fov_data.l = vector<double> {tagPos(0) - 0.108*cos(tagYaw), tagPos(1) - 0.108*sin(tagYaw), tagPos(2)};  // 3D landmark to keep in FOV (i.e. AprilTag center)
-            data.fov_data.alpha_x = 0.5;                // half of vertical fov (radians), orig: 0.59
-            data.fov_data.alpha_y = 0.7;                // orig: 0.79
+            data.fov_data.alpha_x = 0.5;    // half of vertical fov (radians), orig: 0.59
+            data.fov_data.alpha_y = 0.7;    // orig: 0.79
             
             return data;
         }
@@ -760,10 +753,8 @@ class MPC {
         }
         
         void odomMsgSelector(const OdomData& data) {
-            bool data_has_pose = (data.source == POSE_BY_EKF2 || data.source == ODOM_BY_VIO);
-            bool data_has_vel = (data.source == VEL_BY_EKF2 || data.source == ODOM_BY_VIO);
-            assert(data.source == APRIL_TAG || data.source == POSE_BY_EKF2 || data.source == VEL_BY_EKF2 || data.source == ODOM_BY_VIO); // make sure data.source is filled
-            // TODO use aprilTag as state estimation:
+            assert(data.source == APRIL_TAG || data.source == POSE_BY_EKF2 || data.source == VEL_BY_EKF2); // make sure data.source is filled
+            // TODO for Apriltag as state est
 //             if (tag_visible) { // Use AprilTag for position estimate if available
 //                 if(data.source == APRIL_TAG){
 //                     curPose.position = data.pose.position; // position of quad, using apriltag estimate
@@ -782,13 +773,13 @@ class MPC {
 //             if (data_has_vel){
 //                 curVel = data.velocity;
 //             }
-            if (data_has_pose) {
+            if (data.source == POSE_BY_EKF2) {
                 curPose = data.pose;
-                geometry_msgs::Quaternion curQuat = curPose.orientation;
-                Eigen::Quaterniond quadQuat(curQuat.w, curQuat.x, curQuat.y, curQuat.z);  // convert quadQuat from message to Eigen::Quateniond
+                //negativeQuat(curPose.orientation);   // to avoid acado MPC yaw issues
+                Eigen::Quaterniond quadQuat = msg2quaternion(curPose.orientation);  // convert quadQuat from message to Eigen::Quateniond
                 curYaw = quaternion2yaw(quadQuat);
             }
-            if (data_has_vel){
+            if (data.source == VEL_BY_EKF2){
                 curVel = data.velocity;
             }
         }
@@ -818,7 +809,7 @@ class MPC {
         }
         
         // Method to convert Eigen matrix data into a ROS nav_msgs/Path message
-        void Eigen2PathMsg(const Eigen::Matrix<double, Eigen::Dynamic, 11>& data, nav_msgs::Path& path) {
+        void eigen2PathMsg(const Eigen::Matrix<double, Eigen::Dynamic, 11>& data, nav_msgs::Path& path) {
             int num_times = data.rows();
             path.header.stamp = ros::Time::now(); // Set the timestamp of the Path message
             path.header.frame_id = "map";
@@ -880,10 +871,50 @@ class MPC {
         }
         
         // Convert quaternion to yaw, for ZYX euler order
-        double quaternion2yaw(const Eigen::Quaterniond& quat){
-            vector<double> q{quat.coeffs()(3), quat.coeffs()(0), quat.coeffs()(1), quat.coeffs()(2)};
+        double quaternion2yaw(const Eigen::Quaterniond& quat) {
+            vector<double> q{quat.coeffs().w(), quat.coeffs().x(), quat.coeffs().y(), quat.coeffs().z()};
             double yaw = atan2(2*(q[0]*q[3] + q[1]*q[2]), pow(q[0],2) + pow(q[1],2) - pow(q[2],2) - pow(q[3],2));
             return yaw;
+        }
+        
+        Eigen::Quaterniond msg2quaternion(const geometry_msgs::Quaternion& q) {
+            return Eigen::Quaterniond{q.w, q.x, q.y, q.z};
+        }
+        
+        // save trajectory data for debugging
+        void saveTraj(string name, Eigen::MatrixXd eval){
+            string file_path = __FILE__;
+            string dir_path = file_path.substr(0, file_path.rfind("mpc.h")); // get directory containing source file
+            dir_path = dir_path + "../extra/traj/";
+            string data_dir = "gen_landing_traj/";
+            ghc::filesystem::create_directories(dir_path + data_dir); // create new directory for data
+            string stamp = getTimestamp();
+            string filename = name + stamp + ".csv";
+            saveMatrix(dir_path + data_dir + filename, eval);
+            cout << "Trajectory data saved at " << endl << dir_path + data_dir << endl << endl;
+        }
+        
+        // store trajectory in file
+        void saveMatrix(string fileName, const Eigen::MatrixXd& matrix) {
+            //https://eigen.tuxfamily.org/dox/structEigen_1_1IOFormat.html
+            const static Eigen::IOFormat CSVFormat(Eigen::FullPrecision, Eigen::DontAlignCols, ",", "\n");
+        
+            ofstream file(fileName);
+            if (file.is_open()){
+                file << matrix.format(CSVFormat);
+                file.close();
+            }
+        }
+        
+        // return string time stamp in format YYYYmmddHHMMSS
+        std::string getTimestamp() {
+            std::time_t now = std::time(nullptr);
+            std::tm* timeinfo = std::localtime(&now);
+
+            std::stringstream ss;
+            ss << std::put_time(timeinfo, "%Y%m%d%H%M%S");
+
+            return ss.str();
         }
         
         // Linear interpolation between a and b
@@ -900,7 +931,22 @@ class MPC {
             if (t <= 0.5f) return a + t * (b - a);
             else return b + t * (c - b);
         }
-
+        
+        // Flip the signs of all quaternions in a trajectory
+        void flipQuatSigns(Eigen::MatrixXd& M) {
+            M.block(0,7,M.rows(),4) *= -1; // start at (0,7), block of size (M.rows(),4)
+        }
+        
+        // Check if two nearby quaternions (e.g. same rotations) use opposite signage
+        // E.g. quatsDiffSign(q1, q2) is false if
+        //      q1 = (0, -0.707, 0, 0.707), q2 = (0, 0.707, 0, -0.707)
+        bool quatsDiffSign(const Eigen::Quaterniond& q1, const Eigen::Quaterniond& q2) {
+            auto coeffs = q1.coeffs() + q2.coeffs();
+            double abs_sum = abs(coeffs.w()) + abs(coeffs.x()) + abs(coeffs.y()) + abs(coeffs.z());
+            double eps = 0.5;
+            return abs_sum < eps;
+        }
+        
         // Print message and chrono duration in ms 
         void showDuration(string message, chrono::duration<double> t_diff){
             chrono::duration<double> time_used = chrono::duration_cast<chrono::duration<double>>(t_diff);
