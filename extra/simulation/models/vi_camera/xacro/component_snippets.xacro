@@ -232,20 +232,60 @@
     </gazebo>
   </xacro:macro>
 
-  <!-- Macro to add an IMU. -->
+  <!-- Macro to add RotorS IMU. -->
+  <!--
+  <xacro:macro name="imu_plugin_macro"
+    params="namespace parent_link imu_topic
+      mass_imu_sensor gyroscope_noise_density gyroscope_random_walk
+      gyroscope_bias_correlation_time gyroscope_turn_on_bias_sigma
+      accelerometer_noise_density accelerometer_random_walk
+      accelerometer_bias_correlation_time accelerometer_turn_on_bias_sigma
+      *inertia *origin">
+    <link name="${namespace}/imu_link">
+      <inertial>
+        <xacro:insert_block name="inertia" />
+        <mass value="${mass_imu_sensor}" />
+        <origin xyz="0 0 0" rpy="0 0 0" />
+      </inertial>
+    </link>
+    <joint name="${namespace}/imu_joint" type="revolute">
+      <xacro:insert_block name="origin" />
+      <parent link="${parent_link}" />
+      <child link="${namespace}/imu_link" />
+      <limit upper="0" lower="0" effort="0" velocity="0" />
+    </joint>
+    <gazebo>
+      <sensor>
+        <plugin filename="librotors_gazebo_imu_plugin.so" name="rotors_gazebo_imu_plugin">
+          <robotNamespace>${namespace}</robotNamespace>
+          <linkName>${namespace}/imu_link</linkName>
+          <imuTopic>${imu_topic}</imuTopic>
+          <gyroscopeNoiseDensity>${gyroscope_noise_density}</gyroscopeNoiseDensity>
+          <gyroscopeRandomWalk>${gyroscope_random_walk}</gyroscopeRandomWalk>
+          <gyroscopeBiasCorrelationTime>${gyroscope_bias_correlation_time}</gyroscopeBiasCorrelationTime>
+          <gyroscopeTurnOnBiasSigma>${gyroscope_turn_on_bias_sigma}</gyroscopeTurnOnBiasSigma>
+          <accelerometerNoiseDensity>${accelerometer_noise_density}</accelerometerNoiseDensity>
+          <accelerometerRandomWalk>${accelerometer_random_walk}</accelerometerRandomWalk>
+          <accelerometerBiasCorrelationTime>${accelerometer_bias_correlation_time}</accelerometerBiasCorrelationTime>
+          <accelerometerTurnOnBiasSigma>${accelerometer_turn_on_bias_sigma}</accelerometerTurnOnBiasSigma>
+        </plugin>
+      </sensor>
+    </gazebo>
+  </xacro:macro>
+  -->
+
+  <!-- Macro for default ROS IMU -->
   <xacro:macro name="imu_plugin_macro"
     params="namespace parent_link imu_topic
       mass_imu_sensor frame_rate gaussian_noise
       *inertia *origin">
-    <!-- IMU link -->
     <link name="${namespace}/imu_link">
       <inertial>
         <xacro:insert_block name="inertia" />
-        <mass value="${mass_imu_sensor}" />  <!-- [kg] -->
+        <mass value="${mass_imu_sensor}" />
         <origin xyz="0 0 0" rpy="0 0 0" />
       </inertial>
     </link>
-    <!-- IMU joint -->
     <joint name="${namespace}/imu_joint" type="revolute">
       <xacro:insert_block name="origin" />
       <parent link="${parent_link}" />
@@ -417,7 +457,25 @@
       </xacro:vi_sensor_depth_macro>
     </xacro:if>
 
-    <!-- ADIS16448 IMU. -->
+    <!--
+    <xacro:imu_plugin_macro
+      namespace="${namespace}"
+      parent_link="${namespace}/vi_sensor_link"
+      imu_topic="imu"
+      mass_imu_sensor="0.015"
+      gyroscope_noise_density="0.0003394"
+      gyroscope_random_walk="0.000038785"
+      gyroscope_bias_correlation_time="1000.0"
+      gyroscope_turn_on_bias_sigma="0.0087"
+      accelerometer_noise_density="0.004"
+      accelerometer_random_walk="0.006"
+      accelerometer_bias_correlation_time="300.0"
+      accelerometer_turn_on_bias_sigma="0.1960">
+      <inertia ixx="0.00001" ixy="0.0" ixz="0.0" iyy="0.00001" iyz="0.0" izz="0.00001" />
+      <origin xyz="0 0 0" rpy="0 0 0" />
+    </xacro:imu_plugin_macro>
+    -->
+
     <xacro:imu_plugin_macro
       namespace="${namespace}"
       parent_link="${namespace}/vi_sensor_link"
@@ -428,6 +486,7 @@
       <inertia ixx="0.00001" ixy="0.0" ixz="0.0" iyy="0.00001" iyz="0.0" izz="0.00001" />
       <origin xyz="0.0 0 0.0" rpy="0 0 0" />
     </xacro:imu_plugin_macro>
+
   </xacro:macro>
 
 </robot>

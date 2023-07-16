@@ -75,11 +75,19 @@ export ROS_PACKAGE_PATH=$ROS_PACKAGE_PATH:$(pwd):$(pwd)/Tools/simulation/gazebo-
 check_path_exists "ROS_PACKAGE_PATH"
 check_command_success "update ROS_PACKAGE_PATH"
 
+# Export path for gazebo models and worlds
 export GAZEBO_MODEL_PATH=$GAZEBO_MODEL_PATH:$sim_dir/models:$sim_dir/worlds
 check_path_exists "GAZEBO_MODEL_PATH"
 check_command_success "update GAZEBO_MODEL_PATH"
 
+# Export path for custom RotorS IMU gazebo plugin
+#export GAZEBO_PLUGIN_PATH=$GAZEBO_PLUGIN_PATH:$sim_dir/rotors_imu_plugin/build/devel/lib
+#check_path_exists "GAZEBO_PLUGIN_PATH"
+#check_command_success "update GAZEBO_PLUGIN_PATH"
+
 roslaunch px4 posix_sitl.launch \
   gui:=false \
+  debug:=false \
+  verbose:=false \
   sdf:=$sim_dir/models/iris_with_cameras/iris_with_cameras.sdf \
   world:=$sim_dir/worlds/VIO_landing_pad.world

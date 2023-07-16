@@ -28,7 +28,7 @@ int main(int argc, char **argv)
     mpc_ctrl.ref_curr_pub = nh.advertise<nav_msgs::Path>
             ("mpc_curr_reference", 1);    // reference trajectory for current mpc iteration
     mpc_ctrl.pred_pub = nh.advertise<nav_msgs::Path>
-            ("mpc_prediciton", 1);    // reference trajectory for current mpc iteration     
+            ("mpc_prediction", 1);    // reference trajectory for current mpc iteration     
     mpc_ctrl.est_pub = nh.advertise<nav_msgs::Path>
             ("state_estimate", 1); // estimated pose path
     mpc_ctrl.tag_pub = nh.advertise<geometry_msgs::PoseStamped>

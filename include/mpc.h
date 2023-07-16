@@ -1,5 +1,4 @@
-#ifndef MPC_H_INCLUDED
-#define MPC_H_INCLUDED
+#pragma once
 
 #include <ros/ros.h>
 #include <mavros/mavros.h>
@@ -21,7 +20,6 @@
 
 #include <cmath>
 #include <iostream>
-#include <iomanip>
 #include <fstream>
 #include <vector>
 #include <string>
@@ -34,9 +32,9 @@
 
 // for trajectory generation
 #include "min_snap_traj.h"
+#include "filesystem.hpp"
 #include <iomanip>
 #include <chrono>
-#include "filesystem.hpp"
 #include <ctime>
 
 // for mpc
@@ -56,7 +54,7 @@ using namespace std;
 #define NYN         ACADO_NYN // Number of measurements/references on node N
 
 #define N           ACADO_N   // Number of intervals in the horizon
-#define NUM_STEPS   3         // Number of real-time iterations
+#define NUM_STEPS   1         // Number of real-time iterations
 #define VERBOSE     1         // Show iterations: 1, silent: 0
 
 // global variables used by the solver
@@ -93,7 +91,8 @@ class MPC {
 
             // Initialize acadoVariables for horizontal search path
             traj = loadSearchTraj(searchTrajFileName);
-            initAcadoVariables();
+            bool use_percep_cost = false;
+            initAcadoVariables(use_percep_cost);
             
             if( VERBOSE ) acado_printHeader();
             ROS_INFO_STREAM("MPC solver initialized.");
@@ -180,56 +179,17 @@ class MPC {
                 acadoVariables.x0[8] = curVel.y;
                 acadoVariables.x0[9] = curVel.z;
                 
-                // -------- TODO fix this duration and interp stuff (needs re-write)
-                double duration;
+                double horizon_start; // start time of mpc time horizon
                 if (first_mpc_call){
                     first_mpc_call = false;
                     mpc_start_time = ros::Time::now().toSec();
-                    duration = 0.0;
+                    horizon_start = 0.0;
                 } else {
-                    duration = min(ros::Time::now().toSec() - mpc_start_time, traj(traj.rows()-1,0)-traj(0,0) );
+                    double max_start = traj(traj.rows()-1,0) - traj(0,0);
+                    horizon_start = min(ros::Time::now().toSec() - mpc_start_time, max_start);
                 }
                 
-                int row1, row2;
-                int start_row = (int)floor(duration/traj_time_step);
-                double s = min(max((duration - (traj(start_row,0)-traj(0,0)) )/traj_time_step, 0.0), 1.0); // interpolation parameter
-                // --------
-                
-                for (int i = 0; i < N; ++i){ // iterate over time steps within horizon
-                    // Update the references
-                    row1 = min((int)traj.rows()-1, start_row + i*numIntersampleTimes);
-                    row2 = min((int)traj.rows()-1, start_row + i*numIntersampleTimes + 1);
-                    acadoVariables.y[i * NY + 0] = (float)lerp(traj(row1, 1), traj(row2, 1), s); // x
-                    acadoVariables.y[i * NY + 1] = (float)lerp(traj(row1, 2), traj(row2, 2), s); // y
-                    acadoVariables.y[i * NY + 2] = (float)lerp(traj(row1, 3), traj(row2, 3), s); // z
-                    acadoVariables.y[i * NY + 3] = (float)lerp(traj(row1, 7), traj(row2, 7), s); // qw
-                    acadoVariables.y[i * NY + 4] = (float)lerp(traj(row1, 8), traj(row2, 8), s); // qx
-                    acadoVariables.y[i * NY + 5] = (float)lerp(traj(row1, 9), traj(row2, 9), s); // qy
-                    acadoVariables.y[i * NY + 6] = (float)lerp(traj(row1,10), traj(row2,10), s); // qz 
-                    acadoVariables.y[i * NY + 7] = (float)lerp(traj(row1, 4), traj(row2, 4), s); // vx
-                    acadoVariables.y[i * NY + 8] = (float)lerp(traj(row1, 5), traj(row2, 5), s); // vy
-                    acadoVariables.y[i * NY + 9] = (float)lerp(traj(row1, 6), traj(row2, 6), s); // vz
-                    acadoVariables.y[i * NY + 10] = 0; // horiz landmark projection
-                    acadoVariables.y[i * NY + 11] = 0; // vert landmark projection
-                    acadoVariables.y[i * NY + 12] = 9.8; // Thrust
-                    acadoVariables.y[i * NY + 13] = 0; // wx
-                    acadoVariables.y[i * NY + 14] = 0; // wy
-                    acadoVariables.y[i * NY + 15] = 0; // wz
-                }
-                row1 = min((int)traj.rows()-1, start_row + N*numIntersampleTimes);
-                row2 = min((int)traj.rows()-1, start_row + N*numIntersampleTimes + 1);
-                acadoVariables.yN[0] = (float)lerp(traj(row1, 1), traj(row2, 1), s); // x
-                acadoVariables.yN[1] = (float)lerp(traj(row1, 2), traj(row2, 2), s); // y
-                acadoVariables.yN[2] = (float)lerp(traj(row1, 3), traj(row2, 3), s); // z
-                acadoVariables.yN[3] = (float)lerp(traj(row1, 7), traj(row2, 7), s); // qw
-                acadoVariables.yN[4] = (float)lerp(traj(row1, 8), traj(row2, 8), s); // qx
-                acadoVariables.yN[5] = (float)lerp(traj(row1, 9), traj(row2, 9), s); // qy
-                acadoVariables.yN[6] = (float)lerp(traj(row1,10), traj(row2,10), s); // qz
-                acadoVariables.yN[7] = (float)lerp(traj(row1, 4), traj(row2, 4), s); // vx
-                acadoVariables.yN[8] = (float)lerp(traj(row1, 5), traj(row2, 5), s); // vy
-                acadoVariables.yN[9] = (float)lerp(traj(row1, 6), traj(row2, 6), s); // vz
-                acadoVariables.yN[10] = 0; // horiz landmark projection
-                acadoVariables.yN[11] = 0; // vert landmark projection
+                updateAcadoReferences(horizon_start);
                 
                 // ------------------ MPC optimization ------------------ //
                 int iter, status;
@@ -376,22 +336,23 @@ class MPC {
                 // Gerenerate landing trajectory
                 double h_land = tran_CA[2]; // height above landing pad
                 double vel_base = 0.43;     // average speed if curVel.z = 0
-                double scale_val = 0.35;    // 0.45 increasing scale_val causes shorter land times when curVel.z < 0, and longer times when curVel.z > 0
+                double scale_val = 0.3;    // (0.45 for gt, 0.35 for VIO) increasing scale_val causes shorter land times when curVel.z < 0, and longer times when curVel.z > 0
                 double avg_spd = abs(vel_base*exp(-scale_val*min(max(curVel.z, -1.0), 1.0))); // average spd (m/s)
                 double time2land = h_land/avg_spd; // time to land
                 chrono::steady_clock::time_point curr_time = chrono::steady_clock::now();
                 chrono::duration<double> time_since_last = chrono::duration_cast<chrono::duration<double>>(curr_time - traj_gen_time);
-                bool doFOV = true;  // apply FOV constraints to min-snap traj generation
+                bool doFOV = false;  // apply FOV constraints to min-snap traj generation
+                bool use_percep_cost = true; // TODO make use_percep_cost a roslaunch param
+                updateAcadoOnlineData(use_percep_cost); // needs to be before the following if statement, for current mpc
                 if ((double)time_since_last.count() > 0.6*prev_time2land
-                    //&& time_land > 0.5
+                    && time2land > 0.6
                     && checkFOVFeasible(doFOV))
                 {
                     prev_time2land = time2land;
                     traj_gen_time = chrono::steady_clock::now();
-                    numIntersampleTimes = 10;
                     traj.resize(0,0);
-                    traj = genLandingTraj(numIntersampleTimes, time2land, doFOV); // generate trajectory. each row has t, x, y, z, vx, vy, vz, qw, qx, qy, qz
-                    initAcadoVariables();
+                    traj = genLandingTraj(time2land, doFOV); // generate trajectory. each row has t, x, y, z, vx, vy, vz, qw, qx, qy, qz
+                    initAcadoVariables(use_percep_cost);
                     first_mpc_call = true; // reset for new trajectory
                     
                     eigen2PathMsg(traj, mpcTotalRef); // update ROS Trajectory message
@@ -438,8 +399,6 @@ class MPC {
         
         // Trajectory data, info, data struct
         Eigen::MatrixXd traj;
-        int numIntersampleTimes;
-        double traj_time_step;
         chrono::steady_clock::time_point traj_gen_time;
         struct MinSnapData{
             MinSnapTraj::vectOfMatrix24d bounds;
@@ -457,54 +416,85 @@ class MPC {
         bool tag_visible;
         
         // Initialize the acado variables
-        void initAcadoVariables(){
-            // generate and store trajectory
-            traj_time_step = traj(1,0) - traj(0,0);
-            
+        void initAcadoVariables(bool use_percep_cost){
             // Check if trajectory is too short
-            if (traj.rows() < N*numIntersampleTimes + 1){
-                cout << endl << "traj.rows():        " << traj.rows() << endl;
-                cout << "N*numIntersampleTimes: " << N*numIntersampleTimes << endl;
-                ROS_ERROR_STREAM("Need traj.rows() > N*numIntersampleTimes. Shutting down node ...");
+            double traj_duration = traj(traj.rows()-1,0) - traj(0,0);
+            if (traj_duration < mpc_time_horizon){
+                ROS_ERROR_STREAM("Need traj_duration > mpc_time_horizon. Shutting down node ...");
                 ros::shutdown(); 
             }
             
-            int row;
+            // Initialize the references for start of trajectory (time 0.0)
+            updateAcadoReferences(0.0);
+            
+            // Initialize the controls
+            initAcadoControls();
+
+            // Initialize the states and state-feedback vector
+            initAcadoStates();
+
+            // Initialize the weight acado MPC weight matrix
+            initAcadoWeights(use_percep_cost);
+            
+            // NOTE acado online data is updated separately in mavAprilTagCallback(),
+            //   since it updates the PAMPC point of interest based on the AprilTag location
+        }
+
+        // Initialize the acado state variables and state-feedback vector
+        void initAcadoStates() {
+            int row1, row2, row_try;
+            double s;
+            double dt_mpc = mpc_time_horizon/N; // horizon/(num intervals)
+            double dt_traj = traj(1,0) - traj(0,0);
+
+            // Update the states
             for (int i = 0; i < N + 1; ++i){
-                row = i*numIntersampleTimes;
-                acadoVariables.x[i * NX + 0] = (float)traj(row, 1); // x
-                acadoVariables.x[i * NX + 1] = (float)traj(row, 2); // y
-                acadoVariables.x[i * NX + 2] = (float)traj(row, 3); // z
-                acadoVariables.x[i * NX + 3] = (float)traj(row, 7); // qw
-                acadoVariables.x[i * NX + 4] = (float)traj(row, 8); // qx
-                acadoVariables.x[i * NX + 5] = (float)traj(row, 9); // qy
-                acadoVariables.x[i * NX + 6] = (float)traj(row,10); // qz
-                acadoVariables.x[i * NX + 7] = (float)traj(row, 4); // vx
-                acadoVariables.x[i * NX + 8] = (float)traj(row, 5); // vy
-                acadoVariables.x[i * NX + 9] = (float)traj(row, 6); // vz
+                row_try = (int)floor(i*dt_mpc/dt_traj);
+                row1 = min((int)traj.rows()-1, row_try);
+                row2 = min((int)traj.rows()-1, row1 + 1);
+                s = (i*dt_mpc/dt_traj) - row_try; // interpolation parameter
+                acadoVariables.x[i * NX + 0] = lerp(traj(row1, 1), traj(row2, 1), s); // x
+                acadoVariables.x[i * NX + 1] = lerp(traj(row1, 2), traj(row2, 2), s); // y
+                acadoVariables.x[i * NX + 2] = lerp(traj(row1, 3), traj(row2, 3), s); // z
+                acadoVariables.x[i * NX + 3] = lerp(traj(row1, 7), traj(row2, 7), s); // qw
+                acadoVariables.x[i * NX + 4] = lerp(traj(row1, 8), traj(row2, 8), s); // qx
+                acadoVariables.x[i * NX + 5] = lerp(traj(row1, 9), traj(row2, 9), s); // qy
+                acadoVariables.x[i * NX + 6] = lerp(traj(row1,10), traj(row2,10), s); // qz
+                acadoVariables.x[i * NX + 7] = lerp(traj(row1, 4), traj(row2, 4), s); // vx
+                acadoVariables.x[i * NX + 8] = lerp(traj(row1, 5), traj(row2, 5), s); // vy
+                acadoVariables.x[i * NX + 9] = lerp(traj(row1, 6), traj(row2, 6), s); // vz
             }
-
-            // Initialize the controls and references
+            
+            // Initialize state-feedback vector
+            #if ACADO_INITIAL_STATE_FIXED
+                for(int i = 0; i < NX; ++i)
+                    acadoVariables.x0[i] = acadoVariables.x[i];
+            #endif
+        }
+        
+        // Update Acado references, given a trajectory start time (horizon_start) 
+        void updateAcadoReferences(double horizon_start) {
+            int row1, row2, row_try;
+            double s;
+            double dt_mpc = mpc_time_horizon/N; // horizon/(num intervals)
+            double dt_traj = traj(1,0) - traj(0,0);
+            
+            // Update the references
             for (int i = 0; i < N; ++i){ // iterate over time steps within horizon
-                // Initize the controls
-                acadoVariables.u[i * NU + 0] = 9.8; // Thrust (mass-normalized)
-                acadoVariables.u[i * NU + 1] = 0.0; // w_x
-                acadoVariables.u[i * NU + 2] = 0.0; // w_y
-                acadoVariables.u[i * NU + 3] = 0.0; // w_z
-
-                // Initialize the references
-                row = i*numIntersampleTimes;
-                //cout << "traj time: " << traj(row, 0) << endl;
-                acadoVariables.y[i * NY + 0] = (float)traj(row, 1); // x
-                acadoVariables.y[i * NY + 1] = (float)traj(row, 2); // y
-                acadoVariables.y[i * NY + 2] = (float)traj(row, 3); // z
-                acadoVariables.y[i * NY + 3] = (float)traj(row, 7); // qw
-                acadoVariables.y[i * NY + 4] = (float)traj(row, 8); // qx
-                acadoVariables.y[i * NY + 5] = (float)traj(row, 9); // qy
-                acadoVariables.y[i * NY + 6] = (float)traj(row,10); // qz
-                acadoVariables.y[i * NY + 7] = (float)traj(row, 4); // vx
-                acadoVariables.y[i * NY + 8] = (float)traj(row, 5); // vy
-                acadoVariables.y[i * NY + 9] = (float)traj(row, 6); // vz
+                row_try = (int)floor((horizon_start + i*dt_mpc)/dt_traj);
+                row1 = min((int)traj.rows()-1, row_try);
+                row2 = min((int)traj.rows()-1, row1 + 1);
+                s = ((horizon_start + i*dt_mpc)/dt_traj) - row_try; // interpolation parameter
+                acadoVariables.y[i * NY + 0] = lerp(traj(row1, 1), traj(row2, 1), s); // x
+                acadoVariables.y[i * NY + 1] = lerp(traj(row1, 2), traj(row2, 2), s); // y
+                acadoVariables.y[i * NY + 2] = lerp(traj(row1, 3), traj(row2, 3), s); // z
+                acadoVariables.y[i * NY + 3] = lerp(traj(row1, 7), traj(row2, 7), s); // qw
+                acadoVariables.y[i * NY + 4] = lerp(traj(row1, 8), traj(row2, 8), s); // qx
+                acadoVariables.y[i * NY + 5] = lerp(traj(row1, 9), traj(row2, 9), s); // qy
+                acadoVariables.y[i * NY + 6] = lerp(traj(row1,10), traj(row2,10), s); // qz 
+                acadoVariables.y[i * NY + 7] = lerp(traj(row1, 4), traj(row2, 4), s); // vx
+                acadoVariables.y[i * NY + 8] = lerp(traj(row1, 5), traj(row2, 5), s); // vy
+                acadoVariables.y[i * NY + 9] = lerp(traj(row1, 6), traj(row2, 6), s); // vz
                 acadoVariables.y[i * NY + 10] = 0; // horiz landmark projection
                 acadoVariables.y[i * NY + 11] = 0; // vert landmark projection
                 acadoVariables.y[i * NY + 12] = 9.8; // Thrust
@@ -512,36 +502,29 @@ class MPC {
                 acadoVariables.y[i * NY + 14] = 0; // wy
                 acadoVariables.y[i * NY + 15] = 0; // wz
             }
-            // Initialize the final reference
-            row = N*numIntersampleTimes;
-            
-            acadoVariables.yN[0] = (float)traj(row, 1); // x
-            acadoVariables.yN[1] = (float)traj(row, 2); // y
-            acadoVariables.yN[2] = (float)traj(row, 3); // z
-            acadoVariables.yN[3] = (float)traj(row, 7); // qw
-            acadoVariables.yN[4] = (float)traj(row, 8); // qx
-            acadoVariables.yN[5] = (float)traj(row, 9); // qy
-            acadoVariables.yN[6] = (float)traj(row,10); // qz
-            acadoVariables.yN[7] = (float)traj(row, 4); // vx
-            acadoVariables.yN[8] = (float)traj(row, 5); // vy
-            acadoVariables.yN[9] = (float)traj(row, 6); // vz
+            row_try = (int)floor((horizon_start + N*dt_mpc)/dt_traj);
+            row1 = min((int)traj.rows()-1, row_try);
+            row2 = min((int)traj.rows()-1, row1 + 1);
+            s = ((horizon_start + N*dt_mpc)/dt_traj) - row_try; // interpolation parameter
+            acadoVariables.yN[0] = lerp(traj(row1, 1), traj(row2, 1), s); // x
+            acadoVariables.yN[1] = lerp(traj(row1, 2), traj(row2, 2), s); // y
+            acadoVariables.yN[2] = lerp(traj(row1, 3), traj(row2, 3), s); // z
+            acadoVariables.yN[3] = lerp(traj(row1, 7), traj(row2, 7), s); // qw
+            acadoVariables.yN[4] = lerp(traj(row1, 8), traj(row2, 8), s); // qx
+            acadoVariables.yN[5] = lerp(traj(row1, 9), traj(row2, 9), s); // qy
+            acadoVariables.yN[6] = lerp(traj(row1,10), traj(row2,10), s); // qz
+            acadoVariables.yN[7] = lerp(traj(row1, 4), traj(row2, 4), s); // vx
+            acadoVariables.yN[8] = lerp(traj(row1, 5), traj(row2, 5), s); // vy
+            acadoVariables.yN[9] = lerp(traj(row1, 6), traj(row2, 6), s); // vz
             acadoVariables.yN[10] = 0; // horiz landmark projection
             acadoVariables.yN[11] = 0; // vert landmark projection
+        }
 
-            /* MPC: initialize the current state feedback. */
-            #if ACADO_INITIAL_STATE_FIXED
-                acadoVariables.x0[0] = acadoVariables.x[0];
-                acadoVariables.x0[1] = acadoVariables.x[1];
-                acadoVariables.x0[2] = acadoVariables.x[2];
-                acadoVariables.x0[3] = acadoVariables.x[3];
-                acadoVariables.x0[4] = acadoVariables.x[4];
-                acadoVariables.x0[5] = acadoVariables.x[5];
-                acadoVariables.x0[6] = acadoVariables.x[6];
-                acadoVariables.x0[7] = acadoVariables.x[7];
-                acadoVariables.x0[8] = acadoVariables.x[8];
-                acadoVariables.x0[9] = acadoVariables.x[9];
-            #endif
-
+        // Initialize acado weight matrices
+        void initAcadoWeights(bool use_percep_cost) {
+            float p_cost = 0.0f;
+            if (use_percep_cost) p_cost = 100.0f;
+            
             int blk_size = NY*NY; // block size
             float xCostExp = 1.0f;  // state cost scaling
             float uCostExp = 1.0f;  // input cost scaling
@@ -559,8 +542,8 @@ class MPC {
                 acadoVariables.W[i*blk_size + NY*7 + 7] = 5.0f * xExp; // v_x gain
                 acadoVariables.W[i*blk_size + NY*8 + 8] = 5.0f * xExp; // v_y gain
                 acadoVariables.W[i*blk_size + NY*9 + 9] = 5.0f * xExp; // v_z gain
-                acadoVariables.W[i*blk_size + NY*10 + 10] = 0.0f * xExp; // 5 horiz perception cost
-                acadoVariables.W[i*blk_size + NY*11 + 11] = 0.0f * xExp; // 5 vert perception cost
+                acadoVariables.W[i*blk_size + NY*10 + 10] = p_cost * xExp; // horiz perception cost
+                acadoVariables.W[i*blk_size + NY*11 + 11] = p_cost * xExp; // vert perception cost
                 acadoVariables.W[i*blk_size + NY*12 + 12] = 1.0f * uExp; // T gain
                 acadoVariables.W[i*blk_size + NY*13 + 13] = 15.0f * uExp; // w_x gain
                 acadoVariables.W[i*blk_size + NY*14 + 14] = 15.0f * uExp; // w_y gain
@@ -579,26 +562,41 @@ class MPC {
             acadoVariables.WN[NYN*7 + 7] = 5.0f * xExp; // vz gain
             acadoVariables.WN[NYN*8 + 8] = 5.0f * xExp; // vz gain
             acadoVariables.WN[NYN*9 + 9] = 5.0f * xExp; // vz gain
-            acadoVariables.WN[NYN*10 + 10] = 0.0f * xExp; // 5 horiz perception cost
-            acadoVariables.WN[NYN*11 + 11] = 0.0f * xExp; // 5 vert perception cost
-            
-            // Initialize online data
-            for (int i = 0; i < N + 1; ++i){
-                acadoVariables.od[i * NOD + 0] = 0.0; // landmark x position
-                acadoVariables.od[i * NOD + 1] = 0.0; // landmark y position
-                acadoVariables.od[i * NOD + 2] = -0.3; // landmark y position
-                acadoVariables.od[i * NOD + 3] = 0.0; // translation body to cam x   
-                acadoVariables.od[i * NOD + 4] = 0.0; // translation body to cam y
-                acadoVariables.od[i * NOD + 5] = 0.0; // translation body to cam z
-                acadoVariables.od[i * NOD + 6] = 0.0; // quat w body to cam
-                acadoVariables.od[i * NOD + 7] = 0.7071068; // quat x body to cam
-                acadoVariables.od[i * NOD + 8] = 0.7071068; // quat y body to cam
-                acadoVariables.od[i * NOD + 9] = 0.0; // quat z body to cam
+            acadoVariables.WN[NYN*10 + 10] = p_cost * xExp; // horiz perception cost
+            acadoVariables.WN[NYN*11 + 11] = p_cost * xExp; // vert perception cost
+        }
+        
+        // Update acado online data
+        void updateAcadoOnlineData(bool use_percep_cost) {
+            if (use_percep_cost){
+                double tagYaw = curYaw + yawDiff;
+                for (int i = 0; i < N + 1; ++i){
+                    acadoVariables.od[i * NOD + 0] = tagPos(0) - 0.108*cos(tagYaw); // landmark x position
+                    acadoVariables.od[i * NOD + 1] = tagPos(1) - 0.108*sin(tagYaw); // landmark y position
+                    acadoVariables.od[i * NOD + 2] = tagPos(2); // landmark z position
+                    acadoVariables.od[i * NOD + 3] = 0.0; // NOT USED translation body to cam x   
+                    acadoVariables.od[i * NOD + 4] = 0.0; // NOT USED translation body to cam y
+                    acadoVariables.od[i * NOD + 5] = 0.0; // NOT USED translation body to cam z
+                    acadoVariables.od[i * NOD + 6] = 0.0; // quat w body to cam
+                    acadoVariables.od[i * NOD + 7] = 0.0; // quat x body to cam
+                    acadoVariables.od[i * NOD + 8] = 1.0; // quat y body to cam
+                    acadoVariables.od[i * NOD + 9] = 0.0; // quat z body to cam
+                }
             }
         }
-
+        
+        // Initialize acado control inputs
+        void initAcadoControls() {
+            for (int i = 0; i < N; ++i){ // iterate over time steps within horizon
+                acadoVariables.u[i * NU + 0] = 9.8; // Thrust (mass-normalized)
+                acadoVariables.u[i * NU + 1] = 0.0; // w_x
+                acadoVariables.u[i * NU + 2] = 0.0; // w_y
+                acadoVariables.u[i * NU + 3] = 0.0; // w_z
+            }
+        }
+        
         // Load-in a pre-made search trajectory
-        Eigen::MatrixXd loadSearchTraj(const std::string& filename){
+        Eigen::MatrixXd loadSearchTraj(const std::string& filename) {
             
             // find file
             std::ifstream file(filename);
@@ -631,27 +629,25 @@ class MPC {
             }
                         
             // ------------------ Load ROS Trajectory message ------------------ //
-            numIntersampleTimes = 10;
             eigen2PathMsg(eval, mpcTotalRef);
             
             return eval;
         }
         
         // Generate a landing trajectory once the landing pad (AprilTag) is spotted
-        Eigen::MatrixXd genLandingTraj(int numIntersampleTimes, double totalTime, bool doFOV){
+        Eigen::MatrixXd genLandingTraj(double totalTime, bool doFOV){
             // ------------------ Parameters ------------------ //
-            int order = 8;         // order of piecewise polynomials (must be >= 4 for min snap) (works well when order >= numFOVtimes)
-            int numIntervals = 1;  // number of time intervals (must be >= 1) (setting to 1 is fine if not using keyframes, and only using FOV constraints)
-            double d_time = 0.1; // discretization time for the mpc
-            double total_time = floor(totalTime*((double)numIntersampleTimes/d_time)+0.5)/((double)numIntersampleTimes/d_time); // rounding
+            int order = 8;          // order of piecewise polynomials (must be >= 4 for min snap) (works well when order >= numFOVtimes)
+            int num_intervals = 1;  // number of time intervals (must be >= 1) (setting to 1 is fine if not using keyframes, and only using FOV constraints)
+            int num_seg_times = num_intervals + 1;
             double ros_start = ros::Time::now().toSec();
-            vector<double> times = MinSnapTraj::linspace(ros_start, total_time + ros_start, numIntervals + 1); // times for the polynomial segments
+            vector<double> seg_times = MinSnapTraj::linspace(ros_start, totalTime + ros_start, num_seg_times); // time points for the polynomial segments
             
             // ------------------ Prepare the solver (boundary conditions etc.) ------------------ //
             MinSnapData data = prepLandingSolver(doFOV);
 
             // ------------------ Solve the trajectory ------------------ //
-            MinSnapTraj prob(order, times, data.bounds, data.keyframes, data.fov_data);  // create object
+            MinSnapTraj prob(order, seg_times, data.bounds, data.keyframes, data.fov_data);  // create object
 
             chrono::steady_clock::time_point tic, toc;                // time the solver
             tic = chrono::steady_clock::now();
@@ -662,24 +658,29 @@ class MPC {
             showDuration("Init solve time: ", toc - tic);
 
             // ------------------ Save trajectory in Eigen matrix ------------------ //
-            int num_times = (int)(1.0 + (double)numIntersampleTimes*(total_time/d_time));
-            vector<double> tspan = MinSnapTraj::linspace(ros_start, total_time + ros_start, num_times); // time points to evaluate the trajectory
-            Eigen::MatrixXd eval = prob.QuaternionTraj(sol.coeffs, tspan);
+            int eval_freq = 10; // evaluation data points per second (approximate, due to linspace spacing)
+            int num_eval_times = eval_freq*totalTime + 1;
+            vector<double> eval_times = MinSnapTraj::linspace(ros_start, totalTime + ros_start, num_eval_times); // time points to evaluate the trajectory
+            Eigen::MatrixXd eval = prob.QuaternionTraj(sol.coeffs, eval_times);
             
             // Align first trajectory quaternion with current quadcopter quaternion
             Eigen::Quaterniond first_quat(eval(0,7), eval(0,8), eval(0,9), eval(0,10));
             Eigen::Quaterniond curQuat = msg2quaternion(curPose.orientation);
             if (quatsDiffSign(first_quat, curQuat)) flipQuatSigns(eval);
             
-            // Concatonate extra rows if totalT is shorter than mpc_time_horizon
-            if (total_time <= mpc_time_horizon){
-                double start_time = tspan.back() + (d_time/(double)numIntersampleTimes); // need one sample past default time horizon
-                int num_times_extra = (int)(mpc_time_horizon*((double)numIntersampleTimes/d_time)) + 1 - num_times;
-                vector<double> tspan_extra = MinSnapTraj::linspace(start_time, ros_start + mpc_time_horizon, num_times_extra);
-                Eigen::MatrixXd eval_extra(tspan_extra.size(), eval.cols());
+            // Concatonate extra rows if totalTime <= mpc_time_horizon,
+            //   allowing acado mpc to still function
+            if (totalTime <= mpc_time_horizon){
+                double dt_eval = eval(1,0) - eval(0,0);
+                double start_time = eval_times.back() + dt_eval; // start one sample past last time
+                int num_extra_times = (int)ceil((mpc_time_horizon - totalTime)/dt_eval); // end one sample past mpc_time_horizon
+                double final_time = start_time + dt_eval*(num_extra_times - 1);
+                
+                vector<double> tspan_extra = MinSnapTraj::linspace(start_time, final_time, num_extra_times);
+                Eigen::MatrixXd eval_extra(tspan_extra.size(), eval.cols());  // matrix for loading extra rows
                 for (size_t i = 0; i < tspan_extra.size(); i++){
-                    eval_extra.row(i) = eval.row(eval.rows()-1);
-                    eval_extra(i, 0) = tspan_extra[i];
+                    eval_extra.row(i) = eval.row(eval.rows()-1);  // copy the last row of eval
+                    eval_extra(i, 0) = tspan_extra[i];            // update the time
                 }
                 Eigen::MatrixXd eval_total(eval.rows() + eval_extra.rows(), eval.cols());
                 eval_total << eval, eval_extra;  // concatenate both matrices
@@ -906,30 +907,22 @@ class MPC {
             }
         }
         
-        // return string time stamp in format YYYYmmddHHMMSS
+        // return string time stamp in format mmdd_HHMMSS.mmm
         std::string getTimestamp() {
-            std::time_t now = std::time(nullptr);
-            std::tm* timeinfo = std::localtime(&now);
-
+            auto now = std::chrono::system_clock::now();
+            auto time = std::chrono::system_clock::to_time_t(now);
+            auto subSec = now.time_since_epoch() % std::chrono::seconds(1);
             std::stringstream ss;
-            ss << std::put_time(timeinfo, "%Y%m%d%H%M%S");
-
+            ss << std::put_time(std::localtime(&time), "%m-%d_%H-%M-%S");
+            ss << '.' << std::setfill('0') << std::setw(3) << std::chrono::duration_cast<std::chrono::milliseconds>(subSec).count();
             return ss.str();
         }
         
         // Linear interpolation between a and b
-        double lerp(double a, double b, double t){
+        float lerp(double a, double b, double t){
             assert(t >= 0.0);
             assert(t <= 1.0);
-            return a + t * (b - a);
-        }
-
-        // Piecewise linear interpolation between a, b and c
-        float lerp(float a, float b, float c, float t){
-            assert(t >= 0.0f);
-            assert(t <= 1.0f);
-            if (t <= 0.5f) return a + t * (b - a);
-            else return b + t * (c - b);
+            return (float)(a + t * (b - a));
         }
         
         // Flip the signs of all quaternions in a trajectory
@@ -953,5 +946,3 @@ class MPC {
             cout << message << time_used.count()*1000. << " ms" << endl;
         }
 };
-
-#endif // MPC_H_INCLUDED

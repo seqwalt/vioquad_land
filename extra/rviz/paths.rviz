@@ -123,7 +123,7 @@ Visualization Manager:
       Radius: 0.029999999329447746
       Shaft Diameter: 0.10000000149011612
       Shaft Length: 0.10000000149011612
-      Topic: /mpc_prediciton
+      Topic: /mpc_prediction
       Unreliable: false
       Value: true
     - Alpha: 1
@@ -311,7 +311,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 5.867210865020752
+      Distance: 6.970585823059082
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -319,17 +319,17 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: 2.0211703777313232
-        Y: 2.168517589569092
-        Z: 1.2454091310501099
+        X: 3.095726728439331
+        Y: 1.7168718576431274
+        Z: 0.3832223415374756
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.30479666590690613
+      Pitch: 0.44979602098464966
       Target Frame: <Fixed Frame>
-      Yaw: 2.4022552967071533
+      Yaw: 2.3322739601135254
     Saved: ~
 Window Geometry:
   Displays:

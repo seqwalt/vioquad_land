@@ -306,10 +306,10 @@
         </link>
       </model>
       <model name='apriltag_landing_pad'>
-        <pose>4 4 0.1 0 -0 1.57</pose>
+        <pose>4 4 0.1 0 -0 1.0</pose>
         <scale>1 1 1</scale>
         <link name='main'>
-          <pose>4 4 0.1 0 -0 1.57</pose>
+          <pose>4 4 0.1 0 -0 1.0</pose>
           <velocity>0 0 0 0 -0 0</velocity>
           <acceleration>0 0 0 0 -0 0</acceleration>
           <wrench>0 0 0 0 -0 0</wrench>
