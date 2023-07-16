@@ -1,0 +1,8 @@
+prefix=/home/sequoyah/Documents/Research/ARC_lab/VIO/vioquad_ws/src/quad_control/extra/simulation/rotors_imu_plugin/build/devel
+
+Name: rotors_gazebo_imu_plugin
+Description: Description of rotors_gazebo_imu_plugin
+Version: 2.2.3
+Cflags: -I/home/sequoyah/Documents/Research/ARC_lab/VIO/vioquad_ws/src/quad_control/extra/simulation/rotors_imu_plugin/include
+Libs: -L${prefix}/lib 
+Requires: geometry_msgs mav_msgs roscpp gazebo_plugins
