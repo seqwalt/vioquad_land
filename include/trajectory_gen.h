@@ -30,7 +30,7 @@ class TrajectoryGen{
         
         quad_control::FlatOutputs ref;
         Eigen::MatrixXd trajMatrix;
-        double z_offset = 1; // start trajectory slightly off the ground
+        double z_offset = 0; // start trajectory slightly off the ground
         unsigned int iter = 0;
         unsigned int numRows;
         
@@ -108,7 +108,7 @@ class TrajectoryGen{
 
             // transfer the data to an Eigen matrix
             const int num_rows = data.size();
-            const int num_cols = 18;
+            const int num_cols = data[0].size();
             trajMatrix = Eigen::MatrixXd(num_rows, num_cols);
             for (int i = 0; i < num_rows; ++i) {
                 for (int j = 0; j < num_cols; ++j) {
