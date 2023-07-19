@@ -11,7 +11,7 @@
     <arg name="controller" default="position" /> <!-- options: geometric, position -->
 
     <!-- Trajectory config -->
-    <arg name="trajectory" default="horiz_search_quat"/>
+    <arg name="trajectory" default="squiggle"/>
 
     <!-- Controller node -->
     <node pkg="quad_control" name="mavros_cmd_node" type="mavros_cmd_node" output="screen" required="true">

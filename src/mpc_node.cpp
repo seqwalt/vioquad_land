@@ -32,7 +32,7 @@ int main(int argc, char **argv)
     mpc_ctrl.est_pub = nh.advertise<nav_msgs::Path>
             ("state_estimate", 1); // estimated pose path
     mpc_ctrl.tag_pub = nh.advertise<geometry_msgs::PoseStamped>
-            ("mpc_april_tag", 1); // estimated apriltag pose in map/world frame
+            ("fiducial_pose_est", 1); // estimated apriltag pose in map/world frame
 
     // Subscribers
     mpc_ctrl.pose_sub = nh.subscribe
