@@ -1,0 +1,50 @@
+<launch>
+
+    <!-- Down-facing camera -->
+    <arg name="cam_name" default="/pinhole_camera" />
+    <arg name="img_topic" default="image_raw" />
+
+    <!-- Gazebo config -->
+    <arg name="simulation" default="false" />
+
+    <!-- Controller config -->
+    <arg name="controller" default="position" /> <!-- options: geometric, position -->
+
+    <!-- Trajectory config -->
+    <arg name="trajectory" default="horiz_search_quat"/>
+
+    <!-- Controller node -->
+    <node pkg="quad_control" name="mavros_cmd_node" type="mavros_cmd_node" output="screen" required="true">
+        <param name="ctrl_mode" type="string" value="$(arg controller)" />
+        <param name="enable_sim" value="$(arg simulation)" />
+
+        <param name="max_err_acc" value="15.0" />
+
+        <!-- Geometric controller weights -->
+        <param name="Kpos_x" value="10.0" />
+        <param name="Kpos_y" value="10.0" />
+        <param name="Kpos_z" value="20.0" />
+        <param name="Kvel_x" value="5.0" />
+        <param name="Kvel_y" value="5.0" />
+        <param name="Kvel_z" value="10.0" />
+        <param name="Katt_x" value="20" />
+        <param name="Katt_y" value="20" />
+        <param name="Katt_z" value="20" />
+    </node>
+
+    <!-- Trajectory node -->
+    <node pkg="quad_control" name="trajectory_gen_node" type="trajectory_gen_node" output="screen">
+        <param name="trajectory_file" type="string" value="$(find quad_control)/extra/traj/traj_$(arg trajectory).csv" />
+    </node>
+    
+    <!-- Visual Fiducial node -->
+    <node pkg="quad_control" name="visual_fiducial_node" type="visual_fiducial_node" output="screen" required="true"/>
+    
+    <!-- Apriltag node -->
+    <include file="$(find apriltag_ros)/launch/continuous_detection.launch">
+        <arg name="camera_name" value="$(arg cam_name)"/>
+        <arg name="image_topic" value="$(arg img_topic)"/>
+    </include>
+
+</launch>
+

@@ -119,6 +119,10 @@ add_executable(mpc_node src/mpc_node.cpp)
 add_dependencies(mpc_node ${catkin_EXPORTED_TARGETS})
 target_link_libraries(mpc_node acado full_qpoases Eigen3::Eigen ${catkin_LIBRARIES})
 
+add_executable(visual_fiducial_node src/visual_fiducial_node.cpp)
+add_dependencies(visual_fiducial_node ${catkin_EXPORTED_TARGETS})
+target_link_libraries(visual_fiducial_node Eigen3::Eigen ${catkin_LIBRARIES})
+
 set(DO_TESTS TRUE)
 if(DO_TESTS)
     add_executable(min_snap_test extra/tests/min_snap_traj_test.cpp)

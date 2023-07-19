@@ -66,7 +66,7 @@ int main(int argc, char **argv)
             ("mavros/setpoint_position/local", 1);
     mavCmd.pos_track_pub = nh.advertise<mavros_msgs::PositionTarget> // For position controller during trajectory tracking
             ("mavros/setpoint_raw/local", 1);
-    mavCmd.att_pub = nh.advertise<mavros_msgs::AttitudeTarget>       // For geometric controller durin trajectory tracking
+    mavCmd.att_pub = nh.advertise<mavros_msgs::AttitudeTarget>       // For geometric controller during trajectory tracking
             ("mavros/setpoint_raw/attitude", 1);
 
     // Service clients for changing modes    

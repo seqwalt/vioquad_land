@@ -278,8 +278,10 @@ class MPC {
                 Eigen::Isometry3d T_BC = Eigen::Isometry3d::Identity();
                 Eigen::Vector3d tran_BC(0.108, 0.0, 0.0); // translation part
                 Eigen::Matrix3d rot_BC;
-                vector<double> sdf_rpy{0.0, 1.5708, 3.1415}; // roll pitch yaw (XYZ form), given by iris_downward_camera.sdf
-                vector<double> apriltag_rpy{sdf_rpy[2], -sdf_rpy[0], sdf_rpy[1]}; // rotation from sdf to apriltag representaiton (https://github.com/AprilRobotics/apriltag/wiki/AprilTag-User-Guide#coordinate-system).
+                // TODO: fix sdf to apriltag stuff
+                //vector<double> sdf_rpy{0.0, 1.5708, 0.0}; // roll pitch yaw (XYZ form), given by iris_downward_camera.sdf
+                //vector<double> apriltag_rpy{sdf_rpy[2], -sdf_rpy[0], sdf_rpy[1]}; // rotation from sdf to apriltag representaiton (https://github.com/AprilRobotics/apriltag/wiki/AprilTag-User-Guide#coordinate-system).
+                vector<double> apriltag_rpy{3.1415, 0.0, -1.5708};
                 rot_BC = Eigen::AngleAxisd(apriltag_rpy[2], Eigen::Vector3d::UnitZ())
                        * Eigen::AngleAxisd(apriltag_rpy[1], Eigen::Vector3d::UnitY())
                        * Eigen::AngleAxisd(apriltag_rpy[0], Eigen::Vector3d::UnitX()); // XYZ rotation http://sdformat.org/tutorials?tut=specify_pose
@@ -390,7 +392,7 @@ class MPC {
         nav_msgs::Path mpcTotalRef;  // total reference
         nav_msgs::Path mpcCurrRef;   // current iteration reference
         nav_msgs::Path mpcPred;      // mpc prediction
-        nav_msgs::Path mpcEst;       // estimate (vio of ekf2 depending on direct_from_vio param)
+        nav_msgs::Path mpcEst;       // estimate from ekf2 as a path
         double mpc_start_time;
         bool first_mpc_call;
         const double mpc_time_horizon = 2.0; // From ../acado/PAMPC/quadrotor_pampc.cpp

@@ -59,7 +59,7 @@
     <!-- Down-facing camera -->
     <include>
       <uri>model://pinhole_camera</uri>
-      <pose>0.108 0 0 0 1.5708 3.1415</pose>
+      <pose>0.108 0 0 0 1.5708 0</pose>
     </include>
     <joint name="downward_camera_joint" type="revolute">
       <child>pinhole_camera::link</child>

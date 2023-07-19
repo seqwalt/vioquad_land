@@ -4,7 +4,7 @@
     <arg name="simulation" default="false" />
     <arg name="cam_name" default="/pinhole_camera" />
     <arg name="img_topic" default="image_raw" />
-    <arg name="traj_name" default="horiz_search" />
+    <arg name="traj_name" default="horiz_search_quat" />
     <arg name="debug_mpc" default="false" />
     
     <!-- Controller node -->

@@ -1,0 +1,18 @@
+<launch>
+
+    <!-- Down-facing camera -->
+    <arg name="cam_name" default="/pinhole_camera" />
+    <arg name="img_topic" default="image_raw" />
+    
+    <!-- Visual Fiducial node -->
+    <node pkg="quad_control" name="visual_fiducial_node" type="visual_fiducial_node" output="screen" required="true" />
+    
+    <!-- Apriltag node -->
+    <include file="$(find apriltag_ros)/launch/continuous_detection.launch">
+        <arg name="camera_name" value="$(arg cam_name)"/>
+        <arg name="image_topic" value="$(arg img_topic)"/>
+    </include>
+
+</launch>
+
+
