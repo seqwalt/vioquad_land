@@ -49,7 +49,7 @@ int main(int argc, char **argv)
     nh.param<double>("/mavros_cmd_node/Kvel_z", mavCmd.ctrl.K_vel[2], 3.3);
     nh.param<double>("/mavros_cmd_node/Katt_x", mavCmd.ctrl.K_att[0], 20.0);   // ang_rate = K_att * err_att
     nh.param<double>("/mavros_cmd_node/Katt_y", mavCmd.ctrl.K_att[1], 20.0);
-    nh.param<double>("/mavros_cmd_node/Katt_z", mavCmd.ctrl.K_att[2], 20.0);   
+    nh.param<double>("/mavros_cmd_node/Katt_z", mavCmd.ctrl.K_att[2], 20.0);
     
     // Subscribers
     mavCmd.pose_sub = nh.subscribe
