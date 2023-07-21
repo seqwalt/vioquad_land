@@ -23,10 +23,10 @@
     <arg name="tran_BC_y" default="0.0" />               <!-- y translation from quad body to camera -->    
     <arg name="tran_BC_z" default="-0.05" />             <!-- z translation from quad body to camera --> 
     
-    <arg name="thrust_map_a" default="0.00013850414341400538" />   <!-- thrust map polynomial coefficients --> 
-    <arg name="thrust_map_b" default="-0.005408755617324549" />     
-    <arg name="thrust_map_c" default="0.11336157680888627" />       
-    <arg name="thrust_map_d" default="-0.0022807568577082674" />    
+    <arg name="thrust_map_a" default="0.0000383167609231034"/>   <!-- thrust map polynomial coefficients --> 
+    <arg name="thrust_map_b" default="-0.0012743152731511435" />     
+    <arg name="thrust_map_c" default="0.033278078704620316" />       
+    <arg name="thrust_map_d" default="0.001743858872278215" />    
 
     <!-- Controller node -->
     <node pkg="quad_control" name="mavros_cmd_node" type="mavros_cmd_node" output="screen" required="true">
