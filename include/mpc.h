@@ -55,7 +55,6 @@ using namespace std;
 #define NYN         ACADO_NYN // Number of measurements/references on node N
 
 #define N           ACADO_N   // Number of intervals in the horizon
-#define NUM_STEPS   3         // Number of real-time iterations
 #define VERBOSE     1         // Show iterations: 1, silent: 0
 
 // global variables used by the solver
@@ -81,16 +80,28 @@ class MPC {
         quad_control::FlatOutputs ref;
         
         // Parameters
-        bool sim_enable;
-        double tag_smoothing_factor;
-        double tran_BC_x;
-        double tran_BC_y;
-        double tran_BC_z;
-        double land_spd_factor;
-        double land_height;
-        bool Do_Fov;
-        bool Use_Percep_Cost; // TODO make use_percep_cost a roslaunch param
-
+        bool sim_enable_;
+        double tran_BC_x_;
+        double tran_BC_y_;
+        double tran_BC_z_;
+        double land_spd_factor_;
+        double land_spd_base_;
+        double land_height_;
+        bool do_land_;
+        
+        double tag_smoothing_factor_;
+        double half_horiz_fov_;
+        double half_vert_fov_;        
+        bool do_fov_;
+        bool use_percep_cost_;
+    
+        int num_acado_iters_;
+        double mpc_time_horizon_;
+        double thrust_map_a_;
+        double thrust_map_b_;
+        double thrust_map_c_;
+        double thrust_map_d_;
+        
         // MPC class constructor
         MPC(const std::string& searchTrajFileName){
             // Clear solver memory.
@@ -115,6 +126,11 @@ class MPC {
             prev_time2land = 0;
             first_april_tag = true; // TODO: for Apriltag as state est
             tag_visible = false;
+            
+            if (std::abs(tran_BC_y_) > 1e-4){
+                ROS_ERROR_STREAM("std::abs(tran_BC_y_) > 1e-4. TODO: update the prepLandingSolver and updateAcadoOnlineData");
+                ros::shutdown();
+            }
             
             // Prepare first step
             acado_preparationStep();
@@ -194,11 +210,11 @@ class MPC {
                 int num_steps;
                 if (first_mpc_call){
                     first_mpc_call = false;
-                    num_steps = 3;
+                    num_steps = max(3, num_acado_iters_);
                     mpc_start_time = ros::Time::now().toSec();
                     horizon_start = 0.0;
                 } else {
-                    num_steps = NUM_STEPS;
+                    num_steps = num_acado_iters_;
                     double max_start = traj(traj.rows()-1,0) - traj(0,0);
                     horizon_start = min(ros::Time::now().toSec() - mpc_start_time, max_start);
                 }
@@ -288,9 +304,8 @@ class MPC {
                 T_WB.rotate(quat_WB);
                 
                 // Form T_BC (transformation from quadcopter body frame to down-facing camera frame)
-                // TODO: load T_BC info in from launch file
                 Eigen::Isometry3d T_BC = Eigen::Isometry3d::Identity();
-                Eigen::Vector3d tran_BC(tran_BC_x, tran_BC_y, tran_BC_z); // translation part
+                Eigen::Vector3d tran_BC(tran_BC_x_, tran_BC_y_, tran_BC_z_); // translation part
                 Eigen::Matrix3d rot_BC;
                 // TODO: fix sdf to apriltag stuff
                 //vector<double> sdf_rpy{0.0, 1.5708, 0.0}; // roll pitch yaw (XYZ form), given by iris_downward_camera.sdf
@@ -309,7 +324,7 @@ class MPC {
                 Eigen::Isometry3d T_CA = Eigen::Isometry3d::Identity();
                 T_CA.translate(tran_CA);
                 T_CA.rotate(quat_CA); // transformation matrix representing the AprilTag in the camera frame
-                near_landing_pad = (abs(tran_CA[2]) < land_height); // check if near landing pad
+                near_landing_pad = (abs(tran_CA[2]) < land_height_); // check if near landing pad
                 
                 // Compute T_WA
                 Eigen::Isometry3d T_WA = T_WB * T_BC * T_CA;
@@ -327,7 +342,7 @@ class MPC {
                 Eigen::Vector3d z_world = Eigen::Vector3d::UnitZ();
                 bool tag_outlier = z_world.dot(z_tag) < cos(M_PI/8);  // assume tag is facing close to up
                 if (!tag_outlier) {
-                    double a = tag_smoothing_factor; // (0,1] smoothing factor
+                    double a = tag_smoothing_factor_; // (0,1] smoothing factor
                     assert(a >= 0.0 && a < 1.0);
                     tagPos = a*tag_pos_raw + (1 - a)*tagPos; // s_t = a*x_t + (1-a)*s_{t-1}
                     if (tagQuat.coeffs().dot(tag_quat_raw.coeffs()) < 0) tag_quat_raw.coeffs() *= -1; // correct for "double cover"
@@ -371,22 +386,23 @@ class MPC {
                 
                 // Gerenerate landing trajectory
                 double h_land = tran_CA[2]; // height above landing pad
-                double vel_base = 0.43;     // average speed if curVel.z = 0
-                double scale_val = land_spd_factor;    // (0.45 for gt, 0.35 for VIO) increasing scale_val causes shorter land times when curVel.z < 0, and longer times when curVel.z > 0
+                double vel_base = land_spd_base_;     // average speed if curVel.z = 0 or if land_spd_factor_ = 0
+                double scale_val = land_spd_factor_;  // (0.45 for gt, 0.35 for VIO) increasing scale_val causes shorter land times when curVel.z < 0, and longer times when curVel.z > 0
                 double avg_spd = abs(vel_base*exp(-scale_val*min(max(curVel.z, -1.0), 1.0))); // average spd (m/s)
                 double time2land = h_land/avg_spd; // time to land
                 chrono::steady_clock::time_point curr_time = chrono::steady_clock::now();
                 chrono::duration<double> time_since_last = chrono::duration_cast<chrono::duration<double>>(curr_time - traj_gen_time);
-                updateAcadoOnlineData(Use_Percep_Cost); // needs to be before the following if statement, for current mpc
+                updateAcadoOnlineData(use_percep_cost_); // needs to be before the following if statement, for current mpc
                 if ((double)time_since_last.count() > 0.6*prev_time2land
                     && time2land > 0.6
-                    && checkFOVFeasible(Do_Fov))
+                    && checkFOVFeasible(do_fov_)
+                    && do_land_)
                 {
                     prev_time2land = time2land;
                     traj_gen_time = chrono::steady_clock::now();
                     traj.resize(0,0);
-                    traj = genLandingTraj(time2land, Do_Fov); // generate trajectory. each row has t, x, y, z, vx, vy, vz, qw, qx, qy, qz
-                    initAcadoVariables(Use_Percep_Cost);
+                    traj = genLandingTraj(time2land, do_fov_); // generate trajectory. each row has t, x, y, z, vx, vy, vz, qw, qx, qy, qz
+                    initAcadoVariables(use_percep_cost_);
                     first_mpc_call = true; // reset for new trajectory
                     
                     eigen2PathMsg(traj, mpcTotalRef); // update ROS Trajectory message
@@ -427,7 +443,6 @@ class MPC {
         nav_msgs::Path mpcEst;       // estimate from ekf2 as a path
         double mpc_start_time;
         bool first_mpc_call;
-        const double mpc_time_horizon = 2.0; // From ../acado/PAMPC/quadrotor_pampc.cpp
         double T, wx, wy, wz;
         acado_timer t;
         
@@ -452,8 +467,8 @@ class MPC {
         void initAcadoVariables(bool use_percep_cost){
             // Check if trajectory is too short
             double traj_duration = traj(traj.rows()-1,0) - traj(0,0);
-            if (traj_duration < mpc_time_horizon){
-                ROS_ERROR_STREAM("Need traj_duration > mpc_time_horizon. Shutting down node ...");
+            if (traj_duration < mpc_time_horizon_){
+                ROS_ERROR_STREAM("Need traj_duration > mpc_time_horizon_. Shutting down node ...");
                 ros::shutdown(); 
             }
             
@@ -477,7 +492,7 @@ class MPC {
         void initAcadoStates() {
             int row1, row2, row_try;
             double s;
-            double dt_mpc = mpc_time_horizon/N; // horizon/(num intervals)
+            double dt_mpc = mpc_time_horizon_/N; // horizon/(num intervals)
             double dt_traj = traj(1,0) - traj(0,0);
 
             // Update the states
@@ -509,7 +524,7 @@ class MPC {
         void updateAcadoReferences(double horizon_start) {
             int row1, row2, row_try;
             double s;
-            double dt_mpc = mpc_time_horizon/N; // horizon/(num intervals)
+            double dt_mpc = mpc_time_horizon_/N; // horizon/(num intervals)
             double dt_traj = traj(1,0) - traj(0,0);
             
             // Update the references
@@ -567,7 +582,7 @@ class MPC {
                 uExp = exp(-((float)i/(float)N) * uCostExp);
                 acadoVariables.W[i*blk_size] = 500.0f * xExp; // x gain
                 acadoVariables.W[i*blk_size + NY + 1] = 500.0f * xExp; // y gain
-                acadoVariables.W[i*blk_size + NY*2 + 2] = 300.0f * xExp; // z gain
+                acadoVariables.W[i*blk_size + NY*2 + 2] = 500.0f * xExp; // z gain
                 acadoVariables.W[i*blk_size + NY*3 + 3] = 100.0f * xExp; // qw gain
                 acadoVariables.W[i*blk_size + NY*4 + 4] = 100.0f * xExp; // qx gain
                 acadoVariables.W[i*blk_size + NY*5 + 5] = 100.0f * xExp; // qy gain
@@ -587,7 +602,7 @@ class MPC {
             //xExp = 1.0f;
             acadoVariables.WN[0] = 500.0f * xExp; // x gain
             acadoVariables.WN[NYN+1] = 500.0f * xExp; // y gain
-            acadoVariables.WN[NYN*2 + 2] = 300.0f; // z gain (not xExp bc want landing height to be more exact)
+            acadoVariables.WN[NYN*2 + 2] = 500.0f; // z gain (not xExp bc want landing height to be more exact)
             acadoVariables.WN[NYN*3 + 3] = 100.0f * xExp; // qw gain
             acadoVariables.WN[NYN*4 + 4] = 100.0f * xExp; // qx gain
             acadoVariables.WN[NYN*5 + 5] = 100.0f * xExp; // qy gain
@@ -604,8 +619,8 @@ class MPC {
             if (use_percep_cost){
                 double tagYaw = curYaw + yawDiff;
                 for (int i = 0; i < N + 1; ++i){
-                    acadoVariables.od[i * NOD + 0] = tagPos(0) - 0.108*cos(tagYaw); // landmark x position
-                    acadoVariables.od[i * NOD + 1] = tagPos(1) - 0.108*sin(tagYaw); // landmark y position
+                    acadoVariables.od[i * NOD + 0] = tagPos(0) - tran_BC_x_*cos(tagYaw); // landmark x position
+                    acadoVariables.od[i * NOD + 1] = tagPos(1) - tran_BC_x_*sin(tagYaw); // landmark y position
                     acadoVariables.od[i * NOD + 2] = tagPos(2); // landmark z position
                     acadoVariables.od[i * NOD + 3] = 0.0; // NOT USED translation body to cam x   
                     acadoVariables.od[i * NOD + 4] = 0.0; // NOT USED translation body to cam y
@@ -701,12 +716,12 @@ class MPC {
             Eigen::Quaterniond curQuat = msg2quaternion(curPose.orientation);
             if (quatsDiffSign(first_quat, curQuat)) flipQuatSigns(eval);
             
-            // Concatonate extra rows if totalTime <= mpc_time_horizon,
+            // Concatonate extra rows if totalTime <= mpc_time_horizon_,
             //   allowing acado mpc to still function
-            if (totalTime <= mpc_time_horizon){
+            if (totalTime <= mpc_time_horizon_){
                 double dt_eval = eval(1,0) - eval(0,0);
                 double start_time = eval_times.back() + dt_eval; // start one sample past last time
-                int num_extra_times = (int)ceil((mpc_time_horizon - totalTime)/dt_eval); // end one sample past mpc_time_horizon
+                int num_extra_times = (int)ceil((mpc_time_horizon_ - totalTime)/dt_eval); // end one sample past mpc_time_horizon_
                 double final_time = start_time + dt_eval*(num_extra_times - 1);
                 
                 vector<double> tspan_extra = MinSnapTraj::linspace(start_time, final_time, num_extra_times);
@@ -731,7 +746,7 @@ class MPC {
             double tagYaw = curYaw + yawDiff;
             // pos/yaw:  x          y          z          yaw
             p0_bounds << curPos.x,  curPos.y,  curPos.z,  curYaw, // initial
-                         tagPos(0) - 0.108*cos(tagYaw), tagPos(1) - 0.108*sin(tagYaw), tagPos(2), tagYaw; // final
+                         tagPos(0) - tran_BC_x_*cos(tagYaw), tagPos(1) - tran_BC_x_*sin(tagYaw), tagPos(2), tagYaw; // final
 
             MinSnapTraj::Matrix24d p1_bounds; // p=1 means 1st derivative
             // velocity: vx   vy   vz   vyaw
@@ -740,8 +755,9 @@ class MPC {
 
             MinSnapTraj::Matrix24d p2_bounds; // p=2 means 2nd derivative
             // accel:    ax         ay      az      ayaw
+            double z_land_acc = doFOV ? 1.0 : 0.0;
             p2_bounds << curLinAcc.x, curLinAcc.y, curLinAcc.z-9.81, 0.0, // initial
-                        0.0, 0.0, 1.0, 0.0; // final
+                        0.0, 0.0, z_land_acc, 0.0; // final
 
             MinSnapData data;
             data.bounds.push_back(p0_bounds);
@@ -753,9 +769,9 @@ class MPC {
 
             // ------------------ FOV data ------------------ //
             data.fov_data.do_fov = doFOV;
-            data.fov_data.l = vector<double> {tagPos(0) - 0.108*cos(tagYaw), tagPos(1) - 0.108*sin(tagYaw), tagPos(2)};  // 3D landmark to keep in FOV (i.e. AprilTag center)
-            data.fov_data.alpha_x = 0.5;    // half of vertical fov (radians), orig: 0.59
-            data.fov_data.alpha_y = 0.7;    // orig: 0.79
+            data.fov_data.l = vector<double> {tagPos(0) - tran_BC_x_*cos(tagYaw), tagPos(1) - tran_BC_x_*sin(tagYaw), tagPos(2)};  // 3D landmark to keep in FOV (i.e. AprilTag center)
+            data.fov_data.alpha_x = half_horiz_fov_;    // half of vertical fov (radians), orig: 0.59
+            data.fov_data.alpha_y = half_vert_fov_;    // orig: 0.79
             
             return data;
         }
@@ -824,11 +840,11 @@ class MPC {
             // output: PX4-normalized thrust ([0,1])
             double a, b, c, d;
             
-            if (sim_enable){
-                a = 0.00013850414341400538;
-                b = -0.005408755617324549;
-                c = 0.11336157680888627;
-                d = -0.0022807568577082674;
+            if (sim_enable_){
+                a = thrust_map_a_;
+                b = thrust_map_b_;
+                c = thrust_map_c_;
+                d = thrust_map_d_;
             } else {
                 ROS_ERROR_STREAM("No thrust map for real quadcopter.");
                 ros::shutdown();

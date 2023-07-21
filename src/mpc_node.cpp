@@ -18,15 +18,26 @@ int main(int argc, char **argv)
     
     // Create MPC object
     MPC mpc_ctrl(searchTrajFile);
-    nh.getParam("/mpc_node/enable_sim", mpc_ctrl.sim_enable);
-    nh.param<double>("/mpc_node/tag_smoothing_factor", mpc_ctrl.tag_smoothing_factor, 0.5);
-    nh.param<double>("/mpc_node/tran_BC_x", mpc_ctrl.tran_BC_x, 0.108);
-    nh.param<double>("/mpc_node/tran_BC_y", mpc_ctrl.tran_BC_y, 0.0);
-    nh.param<double>("/mpc_node/tran_BC_z", mpc_ctrl.tran_BC_z, 0.0);
-    nh.param<double>("/mpc_node/land_spd_factor", mpc_ctrl.land_spd_factor, 0.3);
-    nh.param<double>("/mpc_node/land_height", mpc_ctrl.land_height, 0.1);
-    nh.param<bool>("/mpc_node/do_fov", mpc_ctrl.Do_Fov, true);
-    nh.param<bool>("/mpc_node/use_percep_cost", mpc_ctrl.Use_Percep_Cost, true);
+    nh.getParam("/mpc_node/enable_sim", mpc_ctrl.sim_enable_);
+    nh.getParam("/mpc_node/tag_smoothing_factor", mpc_ctrl.tag_smoothing_factor_);
+    nh.getParam("/mpc_node/tran_BC_x", mpc_ctrl.tran_BC_x_);
+    nh.getParam("/mpc_node/tran_BC_y", mpc_ctrl.tran_BC_y_);
+    nh.getParam("/mpc_node/tran_BC_z", mpc_ctrl.tran_BC_z_);
+    nh.getParam("/mpc_node/land_spd_factor", mpc_ctrl.land_spd_factor_);
+    nh.getParam("/mpc_node/land_spd_base", mpc_ctrl.land_spd_base_);
+    nh.getParam("/mpc_node/land_height", mpc_ctrl.land_height_);
+    nh.getParam("/mpc_node/do_fov", mpc_ctrl.do_fov_);
+    nh.getParam("/mpc_node/use_percep_cost", mpc_ctrl.use_percep_cost_);
+    nh.getParam("/mpc_node/do_land", mpc_ctrl.do_land_);
+    nh.getParam("/mpc_node/half_horiz_fov", mpc_ctrl.half_horiz_fov_);
+    nh.getParam("/mpc_node/half_vert_fov", mpc_ctrl.half_vert_fov_);
+    nh.getParam("/mpc_node/thrust_map_a", mpc_ctrl.thrust_map_a_);
+    nh.getParam("/mpc_node/thrust_map_b", mpc_ctrl.thrust_map_b_);
+    nh.getParam("/mpc_node/thrust_map_c", mpc_ctrl.thrust_map_c_);
+    nh.getParam("/mpc_node/thrust_map_d", mpc_ctrl.thrust_map_d_);
+    nh.getParam("/mpc_node/thrust_map_d", mpc_ctrl.thrust_map_d_);
+    nh.getParam("/mpc_node/mpc_time_horizon", mpc_ctrl.mpc_time_horizon_);
+    nh.getParam("/mpc_node/num_acado_iters", mpc_ctrl.num_acado_iters_);
     
     // Publishers
     mpc_ctrl.mpc_pub = nh.advertise<mavros_msgs::AttitudeTarget>

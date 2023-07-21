@@ -2,7 +2,7 @@
 
     <!-- Arguments -->   
     <arg name="traj_name" default="lab_search_quat" />   <!-- can only be a quaternion traj, not a flat output traj -->
-    <arg name="do_land" default="true" />                <!-- land on the AprilTag or don't land at all (req. manual land from transmitter) -->    
+    <arg name="do_land" default="false" />                <!-- land on the AprilTag or don't land at all (req. manual land from transmitter) -->    
     <arg name="do_fov" default="true" />                 <!-- apply FOV constraints to min-snap traj generation -->
     <arg name="use_percep_cost" default="true" />        <!-- use PAMPC, by applying perception cost to MPC -->    
 
@@ -12,16 +12,16 @@
     <arg name="mpc_time_horizon" default="2.0" />        <!-- time horizon of acado MPC. From ../acado/PAMPC/quadrotor_pampc.cpp --> 
     <arg name="num_acado_iters" default="3" />           <!-- number real-time mpc iterations (first loop-through will always be max(num_acado_iters, 3)) -->
     <arg name="tag_smoothing_factor" default="0.01" />   <!-- (0,1] AprilTag smoothing factor. 1 means no smoothing -->    
-    <arg name="half_horiz_fov" default="0.70" />         <!-- half of down-facing horizontal (width) FOV (radians) -->    
-    <arg name="half_vert_fov" default="0.50" />          <!-- half of down-facing vertical (height) FOV (radians) -->    
+    <arg name="half_horiz_fov" default="0.75" />          <!-- half of down-facing horizontal (width) FOV (radians) -->    
+    <arg name="half_vert_fov" default="0.60" />           <!-- half of down-facing vertical (height) FOV (radians) -->    
     
-    <arg name="simulation" default="false" />
-    <arg name="cam_name" default="/csi_cam" />           <!-- for down-facing camera -->
-    <arg name="img_topic" default="image_rect" />        <!-- for down-facing camera -->
+    <arg name="simulation" default="true" />
+    <arg name="cam_name" default="/pinhole_camera" />    <!-- for down-facing camera -->
+    <arg name="img_topic" default="image_raw" />         <!-- for down-facing camera -->
     <arg name="debug_mpc" default="false" />
-    <arg name="tran_BC_x" default="0.05" />              <!-- x translation from quad body to camera -->    
+    <arg name="tran_BC_x" default="0.108" />             <!-- x translation from quad body to camera -->    
     <arg name="tran_BC_y" default="0.0" />               <!-- y translation from quad body to camera -->    
-    <arg name="tran_BC_z" default="-0.05" />             <!-- z translation from quad body to camera --> 
+    <arg name="tran_BC_z" default="0.0" />               <!-- z translation from quad body to camera --> 
     
     <arg name="thrust_map_a" default="0.00013850414341400538" />   <!-- thrust map polynomial coefficients --> 
     <arg name="thrust_map_b" default="-0.005408755617324549" />     
