@@ -54,7 +54,7 @@ class MavrosCmd {
         ros::ServiceClient streamimg_client;
 
         ros::Timer cmdloop_timer;
-        ros::Timer setup_timer;
+        ros::Timer modes_timer;
         
         ros::Time print_request;
 
@@ -75,8 +75,7 @@ class MavrosCmd {
                         setpnt_request = ros::Time::now();
                         //ROS_INFO("Waiting for initial trajectory pose.");
                         if (init_setpnt_client.call(init_setpnt) && init_setpnt.response.success) {
-                            ROS_INFO_STREAM("Initial setpoint position: " << endl << init_setpnt.response.position);
-                            ROS_INFO_STREAM("Initial setpoint yaw     : " << init_setpnt.response.yaw);
+                            ROS_INFO_STREAM("Initial setpoint: " << endl << init_setpnt.response);
                             flight_state = TAKEOFF;
                         }
                     }
@@ -84,6 +83,11 @@ class MavrosCmd {
                 }
                 case TAKEOFF: {
                     // Vertical takeoff
+                    
+                    // Only start offboard mode after publishing to pos_pub for a second
+                    static ros::Time takeoff_time = ros::Time::now();
+                    if (ros::Time::now() - takeoff_time > ros::Duration(1.0)) modes_timer.start();
+                    
                     geometry_msgs::PoseStamped takeoff_msg;
                     takeoff_msg.header.stamp = ros::Time::now();
                     takeoff_msg.pose = home_pose;
@@ -92,10 +96,10 @@ class MavrosCmd {
 
                     // Error
                     double z_diff = takeoff_msg.pose.position.z - curPose.position.z;
-                    if (ros::Time::now() - print_request > ros::Duration(3.0)){
-                        ROS_INFO_STREAM("z_diff = " << z_diff);
-                        print_request = ros::Time::now();
-                    }
+                    //if (ros::Time::now() - print_request > ros::Duration(3.0)){
+                    //    ROS_INFO_STREAM("z_diff = " << z_diff);
+                    //    print_request = ros::Time::now();
+                    //}
                     if (abs(z_diff) > 0.8){
                         pos_pub.publish(takeoff_msg);
                     } else {
@@ -169,7 +173,7 @@ class MavrosCmd {
                 case LANDING: {
                     // auto land
                     mavros_set_mode.request.custom_mode = "AUTO.LAND";
-                    if (currentModes.mode != "AUTO.LAND" && (ros::Time::now() - land_request > ros::Duration(2.0))) {
+                    if (currentModes.mode != "AUTO.LAND" && (ros::Time::now() - land_request > ros::Duration(0.5))) {
                         if (set_mode_client.call(mavros_set_mode) && mavros_set_mode.response.mode_sent) {
                             ROS_INFO("AUTO.LAND enabled");
                             ROS_INFO("Once landed, switch to position mode and disarm.");
@@ -193,7 +197,7 @@ class MavrosCmd {
             if (!received_home_pose) {
                 received_home_pose = true;
                 home_pose = msg.pose;
-                ROS_INFO_STREAM("Home pose initialized to: " << home_pose);
+                ROS_INFO_STREAM("Home pose initialized to: " << endl << home_pose);
             }
             curPose = msg.pose;
         }
@@ -238,7 +242,7 @@ class MavrosCmd {
         } // end of mavRefCallback()
 
         // Enable OFFBOARD mode. Arm/Disarm if in simulation
-        void setupCallback(const ros::TimerEvent &event) {
+        void modesCallback(const ros::TimerEvent &event) {
             switch(flight_state) {
                 case LANDING: {
                     // try to disarm if in simulation
@@ -246,15 +250,15 @@ class MavrosCmd {
                         arm_cmd.request.value = false;
                         if (arming_client.call(arm_cmd) && arm_cmd.response.success) {
                             ROS_INFO("Vehicle disarmed");
-                            setup_timer.stop();
+                            modes_timer.stop();
                         }
                         mode_request = ros::Time::now();
                     }
                     break;
                 }
                 default: {
-                    // try to enter offboard mode
-                    if (currentModes.mode != "OFFBOARD" && (ros::Time::now() - mode_request > ros::Duration(2.0))) {
+                    // Enter offboard mode only if trying to take off 
+                    if (flight_state == TAKEOFF && currentModes.mode != "OFFBOARD" && (ros::Time::now() - mode_request > ros::Duration(0.5))) {
                         mavros_set_mode.request.custom_mode = "OFFBOARD";
                         if (set_mode_client.call(mavros_set_mode) && mavros_set_mode.response.mode_sent) {
                             ROS_INFO("Offboard enabled");
@@ -262,7 +266,7 @@ class MavrosCmd {
                         mode_request = ros::Time::now();
                     }
                     // try to arm if in simulation
-                    if (try_to_arm && sim_enable && !currentModes.armed && (ros::Time::now() - mode_request > ros::Duration(2.0))) {
+                    if (try_to_arm && sim_enable && !currentModes.armed && (ros::Time::now() - mode_request > ros::Duration(0.5))) {
                         arm_cmd.request.value = true;
                         if (arming_client.call(arm_cmd) && arm_cmd.response.success) {
                             ROS_INFO("Vehicle armed for takeoff");
@@ -299,7 +303,6 @@ class MavrosCmd {
         ros::Time setpnt_request;
         bool received_home_pose;
 
-        // Private Function
         template <class T>
         void waitForData(const T *data, const std::string &msg, double hz = 100.0) {
             ros::Rate wait_rate(hz);

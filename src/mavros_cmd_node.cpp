@@ -83,7 +83,7 @@ int main(int argc, char **argv)
     // High-level logic loop (takoff, landing etc)
     mavCmd.cmdloop_timer = nh.createTimer(ros::Duration(0.1), &MavrosCmd::cmdLoopCallback, &mavCmd, false, autostart); // loop at 10 Hz
     // Setup loop (arm, disarm, offboard mode)
-    mavCmd.setup_timer = nh.createTimer(ros::Duration(1), &MavrosCmd::setupCallback, &mavCmd, false, autostart);       // loop at  1 HZ
+    mavCmd.modes_timer = nh.createTimer(ros::Duration(0.1), &MavrosCmd::modesCallback, &mavCmd, false, autostart);     // loop at 10 HZ
     
     // wait for FCU connection
     ros::Rate FCU_connect_rate(5.0); // 5 Hz
@@ -98,7 +98,6 @@ int main(int argc, char **argv)
     
     // Start command and setup loops
     mavCmd.cmdloop_timer.start();
-    mavCmd.setup_timer.start();
 
     ros::spin();
     return 0;

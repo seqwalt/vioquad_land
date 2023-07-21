@@ -1,17 +1,15 @@
 <launch>
 
-    <!-- Down-facing camera -->
-    <arg name="cam_name" default="/pinhole_camera" />
-    <arg name="img_topic" default="image_raw" />
-
-    <!-- Gazebo config -->
-    <arg name="simulation" default="false" />
-
-    <!-- Controller config -->
-    <arg name="controller" default="position" /> <!-- options: geometric, position -->
-
-    <!-- Trajectory config -->
-    <arg name="trajectory" default="squiggle"/>
+    <!-- Parameters -->
+    <arg name="cam_name" default="/pinhole_camera" />   <!-- Down-facing camera -->
+    <arg name="img_topic" default="image_raw" />        <!-- Down-facing camera -->
+    <arg name="simulation" default="false" />           <!-- Gazebo config -->
+    <arg name="controller" default="position" />        <!-- options: geometric, position --> 
+    <arg name="trajectory" default="squiggle"/>         <!-- Trajectory name -->
+    <arg name="tag_smoothing_factor" default="0.01" />   <!-- (0,1] AprilTag smoothing factor. 1 means no smoothing -->   
+    <arg name="tran_BC_x" default="0.108" />             <!-- x translation from quad body to camera -->    
+    <arg name="tran_BC_y" default="0.0" />             <!-- y translation from quad body to camera -->    
+    <arg name="tran_BC_z" default="0.0" />             <!-- z translation from quad body to camera --> 
 
     <!-- Controller node -->
     <node pkg="quad_control" name="mavros_cmd_node" type="mavros_cmd_node" output="screen" required="true">
@@ -38,7 +36,12 @@
     </node>
     
     <!-- Visual Fiducial node -->
-    <node pkg="quad_control" name="visual_fiducial_node" type="visual_fiducial_node" output="screen" required="true"/>
+    <node pkg="quad_control" name="visual_fiducial_node" type="visual_fiducial_node" output="screen" required="true">
+        <param name="tag_smoothing_factor" value="$(arg tag_smoothing_factor)" />
+        <param name="tran_BC_x" value="$(arg tran_BC_x)" />
+        <param name="tran_BC_y" value="$(arg tran_BC_y)" />
+        <param name="tran_BC_z" value="$(arg tran_BC_z)" />
+    </node>
     
     <!-- Apriltag node -->
     <include file="$(find apriltag_ros)/launch/continuous_detection.launch">

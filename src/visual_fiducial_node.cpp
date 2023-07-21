@@ -16,6 +16,10 @@ int main(int argc, char **argv)
     
     // Create VisFid object
     VisFid vis_fid;
+    nh.param<double>("/visual_fiducial_node/tag_smoothing_factor", vis_fid.tag_smoothing_factor, 0.5);
+    nh.param<double>("/mpc_node/tran_BC_x", vis_fid.tran_BC_x, 0.108);
+    nh.param<double>("/mpc_node/tran_BC_y", vis_fid.tran_BC_y, 0.0);
+    nh.param<double>("/mpc_node/tran_BC_z", vis_fid.tran_BC_z, 0.0);
     
     // Publishers
     vis_fid.tag_pub = nh.advertise<geometry_msgs::PoseStamped>

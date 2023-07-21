@@ -29,6 +29,12 @@ class VisFid {
         ros::Subscriber apriltag_sub;
         ros::Timer path_timer;
         
+        // Parameters
+        double tag_smoothing_factor;
+        double tran_BC_x;
+        double tran_BC_y;
+        double tran_BC_z;
+        
         // VisFid class constructor
         VisFid(){
             tag_visible = false;
@@ -67,7 +73,7 @@ class VisFid {
                 // Form T_BC (transformation from quadcopter body frame to down-facing camera frame)
                 // TODO: load T_BC info in from launch file
                 Eigen::Isometry3d T_BC = Eigen::Isometry3d::Identity();
-                Eigen::Vector3d tran_BC(0.108, 0.0, 0.0); // translation part
+                Eigen::Vector3d tran_BC(tran_BC_x, tran_BC_y, tran_BC_z); // translation part
                 Eigen::Matrix3d rot_BC;
                 // TODO: fix sdf to apriltag stuff
                 //vector<double> sdf_rpy{0.0, 1.5708, 0.0}; // roll pitch yaw (XYZ form), given by iris_downward_camera.sdf
@@ -89,9 +95,26 @@ class VisFid {
                 
                 // Compute T_WA
                 Eigen::Isometry3d T_WA = T_WB * T_BC * T_CA;
-                tagPos = T_WA.translation();
-                Eigen::Matrix3d tagRot = T_WA.rotation();
-                Eigen::Quaterniond tagQuat = Eigen::Quaterniond(tagRot);
+                Eigen::Vector3d tag_pos_raw = T_WA.translation();
+                static Eigen::Vector3d tagPos = T_WA.translation(); // initialization for filter
+                Eigen::Matrix3d tag_rot_raw = T_WA.rotation();
+                Eigen::Quaterniond tag_quat_raw = Eigen::Quaterniond(tag_rot_raw);
+                static Eigen::Quaterniond tagQuat = tag_quat_raw;  // initialization for filter
+                
+                // Exponential smoothing of AprilTag pose
+                Eigen::Vector3d z_tag = tag_quat_raw*Eigen::Vector3d::UnitZ();
+                Eigen::Vector3d z_world = Eigen::Vector3d::UnitZ();
+                bool tag_outlier = z_world.dot(z_tag) < cos(M_PI/8);  // assume tag is facing close to up
+                if (!tag_outlier) {
+                    double a = tag_smoothing_factor; // (0,1] smoothing factor
+                    assert(a >= 0.0 && a < 1.0);
+                    tagPos = a*tag_pos_raw + (1 - a)*tagPos; // s_t = a*x_t + (1-a)*s_{t-1}
+                    if (tagQuat.coeffs().dot(tag_quat_raw.coeffs()) < 0) tag_quat_raw.coeffs() *= -1; // correct for "double cover"
+                    tagQuat.coeffs() = a*tag_quat_raw.coeffs() + (1 - a)*tagQuat.coeffs();
+                } else {
+                    return;
+                }
+                
                 Eigen::Quaterniond quatDiff = quat_WB.inverse() * tagQuat;
                 yawDiff = quaternion2yaw(quatDiff); // yaw difference with correct sign
                  

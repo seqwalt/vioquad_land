@@ -1,6 +1,6 @@
 <launch>
 
-    <!-- Arguments -->   
+    <!-- Arguments --> 
     <arg name="traj_name" default="horiz_search_quat" />
     <arg name="tag_smoothing_factor" default="0.01" />   <!-- (0,1] AprilTag smoothing factor. 1 means no smoothing -->    
     <arg name="land_spd_factor" default="0.3" />         <!-- Landing speed factor, smalling is longer landing time, 0 mean fixed landing speed idependent of current velocity -->
@@ -9,13 +9,13 @@
     <arg name="use_percep_cost" default="true" />        <!-- use PAMPC, by applying perception cost to MPC -->    
     
     <arg name="simulation" default="false" />
-    <arg name="cam_name" default="/pinhole_camera" />
-    <arg name="img_topic" default="image_raw" />
+    <arg name="cam_name" default="/csi_cam" />
+    <arg name="img_topic" default="image_rect" />
     <arg name="debug_mpc" default="false" />
-    <arg name="tran_BC_x" default="0.108" />             <!-- x translation from quad body to camera -->    
+    <arg name="tran_BC_x" default="0.05" />              <!-- x translation from quad body to camera -->    
     <arg name="tran_BC_y" default="0.0" />               <!-- y translation from quad body to camera -->    
-    <arg name="tran_BC_z" default="0.0" />               <!-- z translation from quad body to camera --> 
-        
+    <arg name="tran_BC_z" default="-0.05" />             <!-- z translation from quad body to camera -->     
+    
     <!-- Controller node -->
     <node pkg="quad_control" name="mavros_cmd_node" type="mavros_cmd_node" output="screen" required="true">
         <param name="ctrl_mode" type="string" value="mpc" />

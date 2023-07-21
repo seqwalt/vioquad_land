@@ -19,6 +19,14 @@ int main(int argc, char **argv)
     // Create MPC object
     MPC mpc_ctrl(searchTrajFile);
     nh.getParam("/mpc_node/enable_sim", mpc_ctrl.sim_enable);
+    nh.param<double>("/mpc_node/tag_smoothing_factor", mpc_ctrl.tag_smoothing_factor, 0.5);
+    nh.param<double>("/mpc_node/tran_BC_x", mpc_ctrl.tran_BC_x, 0.108);
+    nh.param<double>("/mpc_node/tran_BC_y", mpc_ctrl.tran_BC_y, 0.0);
+    nh.param<double>("/mpc_node/tran_BC_z", mpc_ctrl.tran_BC_z, 0.0);
+    nh.param<double>("/mpc_node/land_spd_factor", mpc_ctrl.land_spd_factor, 0.3);
+    nh.param<double>("/mpc_node/land_height", mpc_ctrl.land_height, 0.1);
+    nh.param<bool>("/mpc_node/do_fov", mpc_ctrl.Do_Fov, true);
+    nh.param<bool>("/mpc_node/use_percep_cost", mpc_ctrl.Use_Percep_Cost, true);
     
     // Publishers
     mpc_ctrl.mpc_pub = nh.advertise<mavros_msgs::AttitudeTarget>
