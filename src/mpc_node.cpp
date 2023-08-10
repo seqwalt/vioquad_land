@@ -52,6 +52,8 @@ int main(int argc, char **argv)
             ("state_estimate", 1); // estimated pose path
     mpc_ctrl.tag_pub = nh.advertise<geometry_msgs::PoseStamped>
             ("fiducial_pose_est", 1); // estimated apriltag pose in map/world frame
+    mpc_ctrl.cam2tag_repub = nh.advertise<geometry_msgs::PoseStamped>
+            ("re_tag_detections", 1); // Republish the original tag_detections pose with better message type
 
     // Subscribers
     mpc_ctrl.pose_sub = nh.subscribe
