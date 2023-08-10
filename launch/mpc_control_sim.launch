@@ -3,8 +3,8 @@
     <!-- Arguments -->   
     <arg name="traj_name" default="horiz_search_quat" />   <!-- can only be a quaternion traj, not a flat output traj -->
     <arg name="do_land" default="true" />                <!-- land on the AprilTag or don't land at all (req. manual land from transmitter) -->    
-    <arg name="do_fov" default="true" />                 <!-- apply FOV constraints to min-snap traj generation -->
-    <arg name="use_percep_cost" default="true" />        <!-- use PAMPC, by applying perception cost to MPC -->    
+    <arg name="do_fov" default="false" />                 <!-- apply FOV constraints to min-snap traj generation -->
+    <arg name="use_percep_cost" default="false" />        <!-- use PAMPC, by applying perception cost to MPC -->    
 
     <arg name="land_spd_factor" default="0.45" />        <!-- Landing speed factor, smalling is longer landing time, 0 mean fixed landing speed idependent of current velocity -->
     <arg name="land_spd_base" default="0.43" />          <!-- avg land spd if land_spd_factor = 0 -->
