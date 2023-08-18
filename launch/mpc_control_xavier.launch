@@ -12,9 +12,9 @@
     <arg name="mpc_time_horizon" default="2.0" />        <!-- time horizon of acado MPC. From ../acado/PAMPC/quadrotor_pampc.cpp --> 
     <arg name="num_acado_iters" default="3" />           <!-- number real-time mpc iterations (first loop-through will always be max(num_acado_iters, 3)) -->
     <arg name="tag_smoothing_factor" default="0.01" />   <!-- (0,1] AprilTag smoothing factor. 1 means no smoothing -->    
-    <arg name="half_horiz_fov" default="0.7" />         <!-- half of down-facing horizontal (width) FOV (radians) -->    
-    <arg name="half_vert_fov" default="0.5" />          <!-- half of down-facing vertical (height) FOV (radians) -->    
-    
+    <arg name="half_horiz_fov" default="0.50" />         <!-- half of down-facing horizontal (width) FOV (radians) (smaller than half_vert_fov) -->    
+    <arg name="half_vert_fov" default="0.70" />          <!-- half of down-facing vertical (length) FOV (radians) -->        
+
     <arg name="simulation" default="false" />
     <arg name="cam_name" default="/csi_cam" />           <!-- for down-facing camera -->
     <arg name="img_topic" default="image_rect" />        <!-- for down-facing camera -->

@@ -69,6 +69,7 @@ class MPC {
         ros::Publisher pred_pub;
         ros::Publisher est_pub;
         ros::Publisher tag_pub;
+        ros::Publisher cam2tag_repub;
         
         ros::Subscriber pose_sub;
         ros::Subscriber vel_sub;
@@ -320,6 +321,10 @@ class MPC {
                 // Compute T_CA (transformation from down-facing camera frame to AprilTag frame)
                 geometry_msgs::Pose AprilTagPose_Cam = msg.detections[0].pose.pose.pose; // pose of AprilTag in camera frame
                 Eigen::Vector3d tran_CA(AprilTagPose_Cam.position.x, AprilTagPose_Cam.position.y, AprilTagPose_Cam.position.z); // translation part
+                geometry_msgs::PoseStamped Cam2Tag;
+                Cam2Tag.pose = AprilTagPose_Cam;
+                Cam2Tag.header = msg.detections[0].pose.header;
+                cam2tag_repub.publish(Cam2Tag); // republish as more convenient message type
                 Eigen::Quaterniond quat_CA = msg2quaternion(AprilTagPose_Cam.orientation); // rotation part
                 Eigen::Isometry3d T_CA = Eigen::Isometry3d::Identity();
                 T_CA.translate(tran_CA);
@@ -770,7 +775,7 @@ class MPC {
             // ------------------ FOV data ------------------ //
             data.fov_data.do_fov = doFOV;
             data.fov_data.l = vector<double> {tagPos(0) - tran_BC_x_*cos(tagYaw), tagPos(1) - tran_BC_x_*sin(tagYaw), tagPos(2)};  // 3D landmark to keep in FOV (i.e. AprilTag center)
-            data.fov_data.alpha_x = half_horiz_fov_;    // half of vertical fov (radians), orig: 0.59
+            data.fov_data.alpha_x = half_horiz_fov_;   // half of horiz fov (radians), orig: 0.59
             data.fov_data.alpha_y = half_vert_fov_;    // orig: 0.79
             
             return data;

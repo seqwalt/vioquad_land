@@ -1,10 +1,10 @@
 <launch>
 
     <!-- Arguments -->   
-    <arg name="traj_name" default="lab_search_quat" />   <!-- can only be a quaternion traj, not a flat output traj -->
-    <arg name="do_land" default="false" />                <!-- land on the AprilTag or don't land at all (req. manual land from transmitter) -->    
-    <arg name="do_fov" default="true" />                 <!-- apply FOV constraints to min-snap traj generation -->
-    <arg name="use_percep_cost" default="true" />        <!-- use PAMPC, by applying perception cost to MPC -->    
+    <arg name="traj_name" default="horiz_search_quat" />   <!-- can only be a quaternion traj, not a flat output traj -->
+    <arg name="do_land" default="true" />                <!-- land on the AprilTag or don't land at all (req. manual land from transmitter) -->    
+    <arg name="do_fov" default="false" />                 <!-- apply FOV constraints to min-snap traj generation -->
+    <arg name="use_percep_cost" default="false" />        <!-- use PAMPC, by applying perception cost to MPC -->    
 
     <arg name="land_spd_factor" default="0.45" />        <!-- Landing speed factor, smalling is longer landing time, 0 mean fixed landing speed idependent of current velocity -->
     <arg name="land_spd_base" default="0.43" />          <!-- avg land spd if land_spd_factor = 0 -->
@@ -12,8 +12,8 @@
     <arg name="mpc_time_horizon" default="2.0" />        <!-- time horizon of acado MPC. From ../acado/PAMPC/quadrotor_pampc.cpp --> 
     <arg name="num_acado_iters" default="3" />           <!-- number real-time mpc iterations (first loop-through will always be max(num_acado_iters, 3)) -->
     <arg name="tag_smoothing_factor" default="0.01" />   <!-- (0,1] AprilTag smoothing factor. 1 means no smoothing -->    
-    <arg name="half_horiz_fov" default="0.75" />          <!-- half of down-facing horizontal (width) FOV (radians) -->    
-    <arg name="half_vert_fov" default="0.60" />           <!-- half of down-facing vertical (height) FOV (radians) -->    
+    <arg name="half_horiz_fov" default="0.5925" />          <!-- half of down-facing horizontal (width) FOV (radians) (smaller than half_vert_fov) -->    
+    <arg name="half_vert_fov" default="0.79" />           <!-- half of down-facing vertical (length) FOV (radians) -->    
     
     <arg name="simulation" default="true" />
     <arg name="cam_name" default="/pinhole_camera" />    <!-- for down-facing camera -->
