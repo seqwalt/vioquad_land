@@ -2,7 +2,7 @@
 
 <robot name="vi_camera" xmlns:xacro="http://ros.org/wiki/xacro">
 
-  <xacro:include filename="$(find quad_control)/extra/simulation/models/vi_camera/xacro/component_snippets.xacro" />
+  <xacro:include filename="$(find vioquad_land)/extra/simulation/models/vi_camera/xacro/component_snippets.xacro" />
   <!-- VI-sensor. -->
   <xacro:vi_sensor_macro
     namespace="vi_sensor"

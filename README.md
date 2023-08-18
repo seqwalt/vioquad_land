@@ -3,11 +3,11 @@
 1. Start mavros in either simulation or hardware
 2. Run the controller
 ```
-rosrun quad_control mavros_cmd_node
+rosrun vioquad_land mavros_cmd_node
 ```
 3. Run the trajectory publisher
 ```
-rosrun quad_control trajectory_gen_node
+rosrun vioquad_land trajectory_gen_node
 ```
 ### Behaviour
 - Currently, this package allows a quadcopter to follow a trajectory given by a ```.csv``` fille

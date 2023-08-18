@@ -29,7 +29,7 @@
     <arg name="thrust_map_d" default="0.001743858872278215" />    
 
     <!-- Controller node -->
-    <node pkg="quad_control" name="mavros_cmd_node" type="mavros_cmd_node" output="screen" required="true">
+    <node pkg="vioquad_land" name="mavros_cmd_node" type="mavros_cmd_node" output="screen" required="true">
         <param name="ctrl_mode" type="string" value="mpc" />
         <param name="enable_sim" type="bool" value="$(arg simulation)" />
     </node>
@@ -37,8 +37,8 @@
     <!-- MPC node -->
     <arg name="launch_prefix" value="xterm -e gdb --args" if="$(arg debug_mpc)" />
     <arg name="launch_prefix" value="" unless="$(arg debug_mpc)" />
-    <node pkg="quad_control" name="mpc_node" type="mpc_node" output="screen" required="true" launch-prefix="$(arg launch_prefix)">
-        <param name="search_traj_file" type="string" value="$(find quad_control)/extra/traj/traj_$(arg traj_name).csv" />
+    <node pkg="vioquad_land" name="mpc_node" type="mpc_node" output="screen" required="true" launch-prefix="$(arg launch_prefix)">
+        <param name="search_traj_file" type="string" value="$(find vioquad_land)/extra/traj/traj_$(arg traj_name).csv" />
         <param name="land_spd_factor" value="$(arg land_spd_factor)" />
         <param name="land_spd_base" value="$(arg land_spd_base)" />
         <param name="land_height" value="$(arg land_height)" />

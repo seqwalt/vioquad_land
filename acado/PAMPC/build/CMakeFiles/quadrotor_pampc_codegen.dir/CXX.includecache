@@ -6,7 +6,7 @@
 
 #IncludeRegexTransform: 
 
-/home/sequoyah/Documents/Research/ARC_lab/VIO/vioquad_ws/src/quad_control/acado/PAMPC/quadrotor_pampc.cpp
+/home/sequoyah/Documents/Research/ARC_lab/VIO/vioquad_ws/src/vioquad_land/acado/PAMPC/quadrotor_pampc.cpp
 memory
 -
 acado_optimal_control.hpp

@@ -6,5 +6,5 @@ CXX_FLAGS =  -std=c++11
 
 CXX_DEFINES = 
 
-CXX_INCLUDES = -I/home/sequoyah/Documents/Research/ARC_lab/VIO/vioquad_ws/src/quad_control/acado/PAMPC/. -I/home/sequoyah/Software/ACADOtoolkit -I/home/sequoyah/Software/ACADOtoolkit/acado -I/home/sequoyah/Software/ACADOtoolkit/external_packages -I/home/sequoyah/Software/ACADOtoolkit/external_packages/qpOASES-3.2.0/include -I/home/sequoyah/Software/ACADOtoolkit/build 
+CXX_INCLUDES = -I/home/sequoyah/Documents/Research/ARC_lab/VIO/vioquad_ws/src/vioquad_land/acado/PAMPC/. -I/home/sequoyah/Software/ACADOtoolkit -I/home/sequoyah/Software/ACADOtoolkit/acado -I/home/sequoyah/Software/ACADOtoolkit/external_packages -I/home/sequoyah/Software/ACADOtoolkit/external_packages/qpOASES-3.2.0/include -I/home/sequoyah/Software/ACADOtoolkit/build 
 

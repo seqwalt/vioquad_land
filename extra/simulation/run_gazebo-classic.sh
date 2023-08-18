@@ -66,7 +66,7 @@ DONT_RUN=1 make px4_sitl_default gazebo-classic
 check_command_success "DONT_RUN=1 make px4_sitl_default gazebo-classic"
 
 source $sim_dir/../../../../devel/setup.bash
-check_command_success "source workspace of quad_control"
+check_command_success "source workspace of vioquad_land"
 
 source Tools/simulation/gazebo-classic/setup_gazebo.bash $(pwd) $(pwd)/build/px4_sitl_default
 check_command_success "update Gazebo and LD paths"

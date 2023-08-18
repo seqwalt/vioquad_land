@@ -18,8 +18,8 @@
 #include <string>
 
 #include <std_srvs/Trigger.h>
-#include "quad_control/InitSetpoint.h"     // custom service 
-#include "quad_control/FlatOutputs.h"  // custorm message
+#include "vioquad_land/InitSetpoint.h"     // custom service 
+#include "vioquad_land/FlatOutputs.h"  // custorm message
 
 using namespace std;
 
@@ -28,7 +28,7 @@ class TrajectoryGen{
         ros::Publisher traj_pub;
         ros::Timer traj_timer;
         
-        quad_control::FlatOutputs ref;
+        vioquad_land::FlatOutputs ref;
         Eigen::MatrixXd trajMatrix;
         double z_offset = 0; // start trajectory slightly off the ground
         unsigned int iter = 0;
@@ -74,7 +74,7 @@ class TrajectoryGen{
             return true;
         }
         
-        bool initRefCallback(quad_control::InitSetpoint::Request &req, quad_control::InitSetpoint::Response &res){
+        bool initRefCallback(vioquad_land::InitSetpoint::Request &req, vioquad_land::InitSetpoint::Response &res){
             res.success = true;
             res.position.x = trajMatrix(0,1);
             res.position.y = trajMatrix(0,2);

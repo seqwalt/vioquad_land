@@ -20,7 +20,7 @@ int main(int argc, char **argv)
     mavTraj.csvToEigen(trajFile); // store trajectory in an Eigen matrix
 
     // Trajectory publisher
-    mavTraj.traj_pub = nh.advertise<quad_control::FlatOutputs>("reference/flatoutputs", 1);
+    mavTraj.traj_pub = nh.advertise<vioquad_land::FlatOutputs>("reference/flatoutputs", 1);
 
     // Timer that publishes setpoints at 100 Hz
     double freq = 100; // Hz

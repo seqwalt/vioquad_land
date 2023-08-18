@@ -28,8 +28,8 @@
 #include <random>
 
 #include <std_srvs/Trigger.h>
-#include "quad_control/InitSetpoint.h" // custom service
-#include "quad_control/FlatOutputs.h"  // custom message
+#include "vioquad_land/InitSetpoint.h" // custom service
+#include "vioquad_land/FlatOutputs.h"  // custom message
 
 // for trajectory generation
 #include "min_snap_traj.h"
@@ -78,7 +78,7 @@ class MPC {
         ros::Timer mpc_timer;
         ros::Timer path_timer;
         
-        quad_control::FlatOutputs ref;
+        vioquad_land::FlatOutputs ref;
         
         // Parameters
         bool sim_enable_;
@@ -138,7 +138,7 @@ class MPC {
         }
 
         // Send initial pose back to mavros_cmd_node, upon request
-        bool initRefCallback(quad_control::InitSetpoint::Request &req, quad_control::InitSetpoint::Response &res){
+        bool initRefCallback(vioquad_land::InitSetpoint::Request &req, vioquad_land::InitSetpoint::Response &res){
             res.success = true;
             res.position.x = traj(0,1);
             res.position.y = traj(0,2);

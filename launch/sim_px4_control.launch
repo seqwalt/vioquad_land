@@ -24,7 +24,7 @@
     <arg name="traj_name" default="traj_fig8_20s"/>
     
     <!-- Controller node -->
-    <node pkg="quad_control" type="mavros_cmd_node" output="screen">
+    <node pkg="vioquad_land" type="mavros_cmd_node" output="screen">
         <param name="ctrl_mode" type="string" value="$(arg command_input)" />
         <param name="enable_sim" value="$(arg gazebo_simulation)" />
         
@@ -44,8 +44,8 @@
     </node>
 
     <!-- Trajectory node -->
-    <node pkg="quad_control" type="trajectory_gen_node" output="screen">
-        <param name="trajectory_file" type="string" value="$(find quad_control)/traj/$(arg traj_name).csv" />
+    <node pkg="vioquad_land" type="trajectory_gen_node" output="screen">
+        <param name="trajectory_file" type="string" value="$(find vioquad_land)/traj/$(arg traj_name).csv" />
     </node>
 
     <!-- Launch rqt_reconfigure -->

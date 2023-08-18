@@ -1,7 +1,7 @@
 /**
  * @file compare_traj_test.cpp
  * @brief Sanity check comparing MinSnapTraj::FlatOutputTraj() and MinSnapTraj::QuaternionTraj() trajectories. Should contain same info.
- * @note executable located at .../vioquad_ws/devel/.private/quad_control/lib/quad_control
+ * @note executable located at .../vioquad_ws/devel/.private/vioquad_land/lib/vioquad_land
  */
 
 #include <Eigen/Core>

@@ -5,7 +5,7 @@
     <arg name="img_topic" default="image_rect" />
     
     <!-- Visual Fiducial node -->
-    <node pkg="quad_control" name="visual_fiducial_node" type="visual_fiducial_node" output="screen" required="true" />
+    <node pkg="vioquad_land" name="visual_fiducial_node" type="visual_fiducial_node" output="screen" required="true" />
     
     <!-- Apriltag node -->
     <include file="$(find apriltag_ros)/launch/continuous_detection.launch">

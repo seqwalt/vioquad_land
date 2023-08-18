@@ -6,7 +6,7 @@ sudo apt-get install libgazebo11-dev  # if using noetic
 sudo apt-get install libgazebo9-dev   # if using melodic
 sudo apt install protobuf-compiler
 
-cd .../quad_control/extra/simulation/rotors_imu_plugin
+cd .../vioquad_land/extra/simulation/rotors_imu_plugin
 mkdir build
 cd build
 cmake ..
@@ -28,7 +28,7 @@ chmod +x run_gazebo-classic.sh
 ## (Optional) regenerate file vi_sensor.sdf from vi_sensor.urdf.xacro
 
 ```
-cd .../quad_control/extra/simulation/models/vi_camera/xacro
+cd .../vioquad_land/extra/simulation/models/vi_camera/xacro
 xacro vi_camera.urdf.xacro > vi_camera.urdf   # generate file vi_camera.urdf
 gz sdf -p vi_camera.urdf > vi_camera.sdf      # generate file vi_camera.sdf
 mv vi_camera.sdf ../                          # move file into vi_camera directory

@@ -1,7 +1,7 @@
 /**
  * @file min_snap_traj_test.cpp
  * @brief Test for minimum snap trajector generation with FOV constraints
- * @note executable located at .../vioquad_ws/devel/.private/quad_control/lib/quad_control
+ * @note executable located at .../vioquad_ws/devel/.private/vioquad_land/lib/vioquad_land
  */
 
 #include "min_snap_traj.h"

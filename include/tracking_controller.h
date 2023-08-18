@@ -39,7 +39,7 @@ class Controller {
         //      and the result is used as the input to the velocity controller;
         //      the acceleration setpoint is added to the output of the velocity controller
         //      and the result used to compute the thrust vector
-        void PosYaw(mavros_msgs::PositionTarget& inputs, const quad_control::FlatOutputs &ref) {            
+        void PosYaw(mavros_msgs::PositionTarget& inputs, const vioquad_land::FlatOutputs &ref) {            
             inputs.position = ref.position;
             inputs.velocity = ref.velocity;
             inputs.acceleration_or_force = ref.acceleration;
@@ -50,7 +50,7 @@ class Controller {
         // Geometric tracking controller
         // Based on "Geometric Tracking Control of a Quadrotor UAV on SE(3)" (Lee et al., 2010)
         // Implementation inspired by https://github.com/Jaeyoung-Lim/mavros_controllers
-        void Geometric(mavros_msgs::AttitudeTarget& inputs, const quad_control::FlatOutputs &ref, const State& cur) {
+        void Geometric(mavros_msgs::AttitudeTarget& inputs, const vioquad_land::FlatOutputs &ref, const State& cur) {
             // Position and velocity errors
             err_pos = vectToEigen(cur.pose.position) - vectToEigen(ref.position);    // position error
             err_vel = vectToEigen(cur.velocity) - vectToEigen(ref.velocity);         // velocity error

@@ -10,7 +10,7 @@
     <arg name="trajectory" default="fig8_10s"/>
 
     <!-- Controller node -->
-    <node pkg="quad_control" name="mavros_cmd_node" type="mavros_cmd_node" output="screen" required="true">
+    <node pkg="vioquad_land" name="mavros_cmd_node" type="mavros_cmd_node" output="screen" required="true">
         <param name="ctrl_mode" type="string" value="$(arg controller)" />
         <param name="enable_sim" value="$(arg simulation)" />
 
@@ -29,8 +29,8 @@
     </node>
 
     <!-- Trajectory node -->
-    <node pkg="quad_control" name="trajectory_gen_node" type="trajectory_gen_node" output="screen">
-        <param name="trajectory_file" type="string" value="$(find quad_control)/extra/traj/traj_$(arg trajectory).csv" />
+    <node pkg="vioquad_land" name="trajectory_gen_node" type="trajectory_gen_node" output="screen">
+        <param name="trajectory_file" type="string" value="$(find vioquad_land)/extra/traj/traj_$(arg trajectory).csv" />
     </node>
 
 </launch>

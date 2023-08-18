@@ -10,7 +10,7 @@ The output was:
 
 Compilation of the C compiler identification source "CMakeCCompilerId.c" produced "a.out"
 
-The C compiler identification is GNU, found in "/home/sequoyah/Documents/Research/ARC_lab/VIO/vioquad_ws/src/quad_control/acado/PAMPC/build/CMakeFiles/3.16.3/CompilerIdC/a.out"
+The C compiler identification is GNU, found in "/home/sequoyah/Documents/Research/ARC_lab/VIO/vioquad_ws/src/vioquad_land/acado/PAMPC/build/CMakeFiles/3.16.3/CompilerIdC/a.out"
 
 Compiling the CXX compiler identification source file "CMakeCXXCompilerId.cpp" succeeded.
 Compiler: /usr/lib/ccache/c++ 
@@ -23,27 +23,27 @@ The output was:
 
 Compilation of the CXX compiler identification source "CMakeCXXCompilerId.cpp" produced "a.out"
 
-The CXX compiler identification is GNU, found in "/home/sequoyah/Documents/Research/ARC_lab/VIO/vioquad_ws/src/quad_control/acado/PAMPC/build/CMakeFiles/3.16.3/CompilerIdCXX/a.out"
+The CXX compiler identification is GNU, found in "/home/sequoyah/Documents/Research/ARC_lab/VIO/vioquad_ws/src/vioquad_land/acado/PAMPC/build/CMakeFiles/3.16.3/CompilerIdCXX/a.out"
 
 Determining if the C compiler works passed with the following output:
-Change Dir: /home/sequoyah/Documents/Research/ARC_lab/VIO/vioquad_ws/src/quad_control/acado/PAMPC/build/CMakeFiles/CMakeTmp
+Change Dir: /home/sequoyah/Documents/Research/ARC_lab/VIO/vioquad_ws/src/vioquad_land/acado/PAMPC/build/CMakeFiles/CMakeTmp
 
 Run Build Command(s):/usr/bin/make cmTC_dd4e8/fast && /usr/bin/make -f CMakeFiles/cmTC_dd4e8.dir/build.make CMakeFiles/cmTC_dd4e8.dir/build
-make[1]: Entering directory '/home/sequoyah/Documents/Research/ARC_lab/VIO/vioquad_ws/src/quad_control/acado/PAMPC/build/CMakeFiles/CMakeTmp'
+make[1]: Entering directory '/home/sequoyah/Documents/Research/ARC_lab/VIO/vioquad_ws/src/vioquad_land/acado/PAMPC/build/CMakeFiles/CMakeTmp'
 Building C object CMakeFiles/cmTC_dd4e8.dir/testCCompiler.c.o
-/usr/lib/ccache/cc    -o CMakeFiles/cmTC_dd4e8.dir/testCCompiler.c.o   -c /home/sequoyah/Documents/Research/ARC_lab/VIO/vioquad_ws/src/quad_control/acado/PAMPC/build/CMakeFiles/CMakeTmp/testCCompiler.c
+/usr/lib/ccache/cc    -o CMakeFiles/cmTC_dd4e8.dir/testCCompiler.c.o   -c /home/sequoyah/Documents/Research/ARC_lab/VIO/vioquad_ws/src/vioquad_land/acado/PAMPC/build/CMakeFiles/CMakeTmp/testCCompiler.c
 Linking C executable cmTC_dd4e8
 /usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_dd4e8.dir/link.txt --verbose=1
 /usr/lib/ccache/cc      -rdynamic CMakeFiles/cmTC_dd4e8.dir/testCCompiler.c.o  -o cmTC_dd4e8 
-make[1]: Leaving directory '/home/sequoyah/Documents/Research/ARC_lab/VIO/vioquad_ws/src/quad_control/acado/PAMPC/build/CMakeFiles/CMakeTmp'
+make[1]: Leaving directory '/home/sequoyah/Documents/Research/ARC_lab/VIO/vioquad_ws/src/vioquad_land/acado/PAMPC/build/CMakeFiles/CMakeTmp'
 
 
 
 Detecting C compiler ABI info compiled with the following output:
-Change Dir: /home/sequoyah/Documents/Research/ARC_lab/VIO/vioquad_ws/src/quad_control/acado/PAMPC/build/CMakeFiles/CMakeTmp
+Change Dir: /home/sequoyah/Documents/Research/ARC_lab/VIO/vioquad_ws/src/vioquad_land/acado/PAMPC/build/CMakeFiles/CMakeTmp
 
 Run Build Command(s):/usr/bin/make cmTC_b533e/fast && /usr/bin/make -f CMakeFiles/cmTC_b533e.dir/build.make CMakeFiles/cmTC_b533e.dir/build
-make[1]: Entering directory '/home/sequoyah/Documents/Research/ARC_lab/VIO/vioquad_ws/src/quad_control/acado/PAMPC/build/CMakeFiles/CMakeTmp'
+make[1]: Entering directory '/home/sequoyah/Documents/Research/ARC_lab/VIO/vioquad_ws/src/vioquad_land/acado/PAMPC/build/CMakeFiles/CMakeTmp'
 Building C object CMakeFiles/cmTC_b533e.dir/CMakeCCompilerABI.c.o
 /usr/lib/ccache/cc   -v -o CMakeFiles/cmTC_b533e.dir/CMakeCCompilerABI.c.o   -c /usr/share/cmake-3.16/Modules/CMakeCCompilerABI.c
 Using built-in specs.
@@ -100,7 +100,7 @@ LIBRARY_PATH=/usr/lib/gcc/x86_64-linux-gnu/9/:/usr/lib/gcc/x86_64-linux-gnu/9/..
 COLLECT_GCC_OPTIONS='-v' '-rdynamic' '-o' 'cmTC_b533e' '-mtune=generic' '-march=x86-64'
  /usr/lib/gcc/x86_64-linux-gnu/9/collect2 -plugin /usr/lib/gcc/x86_64-linux-gnu/9/liblto_plugin.so -plugin-opt=/usr/lib/gcc/x86_64-linux-gnu/9/lto-wrapper -plugin-opt=-fresolution=/tmp/ccmPfQDx.res -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lc -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s --build-id --eh-frame-hdr -m elf_x86_64 --hash-style=gnu --as-needed -export-dynamic -dynamic-linker /lib64/ld-linux-x86-64.so.2 -pie -z now -z relro -o cmTC_b533e /usr/lib/gcc/x86_64-linux-gnu/9/../../../x86_64-linux-gnu/Scrt1.o /usr/lib/gcc/x86_64-linux-gnu/9/../../../x86_64-linux-gnu/crti.o /usr/lib/gcc/x86_64-linux-gnu/9/crtbeginS.o -L/usr/lib/gcc/x86_64-linux-gnu/9 -L/usr/lib/gcc/x86_64-linux-gnu/9/../../../x86_64-linux-gnu -L/usr/lib/gcc/x86_64-linux-gnu/9/../../../../lib -L/lib/x86_64-linux-gnu -L/lib/../lib -L/usr/lib/x86_64-linux-gnu -L/usr/lib/../lib -L/usr/lib/gcc/x86_64-linux-gnu/9/../../.. CMakeFiles/cmTC_b533e.dir/CMakeCCompilerABI.c.o -lgcc --push-state --as-needed -lgcc_s --pop-state -lc -lgcc --push-state --as-needed -lgcc_s --pop-state /usr/lib/gcc/x86_64-linux-gnu/9/crtendS.o /usr/lib/gcc/x86_64-linux-gnu/9/../../../x86_64-linux-gnu/crtn.o
 COLLECT_GCC_OPTIONS='-v' '-rdynamic' '-o' 'cmTC_b533e' '-mtune=generic' '-march=x86-64'
-make[1]: Leaving directory '/home/sequoyah/Documents/Research/ARC_lab/VIO/vioquad_ws/src/quad_control/acado/PAMPC/build/CMakeFiles/CMakeTmp'
+make[1]: Leaving directory '/home/sequoyah/Documents/Research/ARC_lab/VIO/vioquad_ws/src/vioquad_land/acado/PAMPC/build/CMakeFiles/CMakeTmp'
 
 
 
@@ -121,10 +121,10 @@ Parsed C implicit include dir info from above output: rv=done
 
 Parsed C implicit link information from above output:
   link line regex: [^( *|.*[/\])(ld|CMAKE_LINK_STARTFILE-NOTFOUND|([^/\]+-)?ld|collect2)[^/\]*( |$)]
-  ignore line: [Change Dir: /home/sequoyah/Documents/Research/ARC_lab/VIO/vioquad_ws/src/quad_control/acado/PAMPC/build/CMakeFiles/CMakeTmp]
+  ignore line: [Change Dir: /home/sequoyah/Documents/Research/ARC_lab/VIO/vioquad_ws/src/vioquad_land/acado/PAMPC/build/CMakeFiles/CMakeTmp]
   ignore line: []
   ignore line: [Run Build Command(s):/usr/bin/make cmTC_b533e/fast && /usr/bin/make -f CMakeFiles/cmTC_b533e.dir/build.make CMakeFiles/cmTC_b533e.dir/build]
-  ignore line: [make[1]: Entering directory '/home/sequoyah/Documents/Research/ARC_lab/VIO/vioquad_ws/src/quad_control/acado/PAMPC/build/CMakeFiles/CMakeTmp']
+  ignore line: [make[1]: Entering directory '/home/sequoyah/Documents/Research/ARC_lab/VIO/vioquad_ws/src/vioquad_land/acado/PAMPC/build/CMakeFiles/CMakeTmp']
   ignore line: [Building C object CMakeFiles/cmTC_b533e.dir/CMakeCCompilerABI.c.o]
   ignore line: [/usr/lib/ccache/cc   -v -o CMakeFiles/cmTC_b533e.dir/CMakeCCompilerABI.c.o   -c /usr/share/cmake-3.16/Modules/CMakeCCompilerABI.c]
   ignore line: [Using built-in specs.]
@@ -243,24 +243,24 @@ Parsed C implicit link information from above output:
 
 
 Determining if the CXX compiler works passed with the following output:
-Change Dir: /home/sequoyah/Documents/Research/ARC_lab/VIO/vioquad_ws/src/quad_control/acado/PAMPC/build/CMakeFiles/CMakeTmp
+Change Dir: /home/sequoyah/Documents/Research/ARC_lab/VIO/vioquad_ws/src/vioquad_land/acado/PAMPC/build/CMakeFiles/CMakeTmp
 
 Run Build Command(s):/usr/bin/make cmTC_b9367/fast && /usr/bin/make -f CMakeFiles/cmTC_b9367.dir/build.make CMakeFiles/cmTC_b9367.dir/build
-make[1]: Entering directory '/home/sequoyah/Documents/Research/ARC_lab/VIO/vioquad_ws/src/quad_control/acado/PAMPC/build/CMakeFiles/CMakeTmp'
+make[1]: Entering directory '/home/sequoyah/Documents/Research/ARC_lab/VIO/vioquad_ws/src/vioquad_land/acado/PAMPC/build/CMakeFiles/CMakeTmp'
 Building CXX object CMakeFiles/cmTC_b9367.dir/testCXXCompiler.cxx.o
-/usr/lib/ccache/c++     -o CMakeFiles/cmTC_b9367.dir/testCXXCompiler.cxx.o -c /home/sequoyah/Documents/Research/ARC_lab/VIO/vioquad_ws/src/quad_control/acado/PAMPC/build/CMakeFiles/CMakeTmp/testCXXCompiler.cxx
+/usr/lib/ccache/c++     -o CMakeFiles/cmTC_b9367.dir/testCXXCompiler.cxx.o -c /home/sequoyah/Documents/Research/ARC_lab/VIO/vioquad_ws/src/vioquad_land/acado/PAMPC/build/CMakeFiles/CMakeTmp/testCXXCompiler.cxx
 Linking CXX executable cmTC_b9367
 /usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_b9367.dir/link.txt --verbose=1
 /usr/lib/ccache/c++       -rdynamic CMakeFiles/cmTC_b9367.dir/testCXXCompiler.cxx.o  -o cmTC_b9367 
-make[1]: Leaving directory '/home/sequoyah/Documents/Research/ARC_lab/VIO/vioquad_ws/src/quad_control/acado/PAMPC/build/CMakeFiles/CMakeTmp'
+make[1]: Leaving directory '/home/sequoyah/Documents/Research/ARC_lab/VIO/vioquad_ws/src/vioquad_land/acado/PAMPC/build/CMakeFiles/CMakeTmp'
 
 
 
 Detecting CXX compiler ABI info compiled with the following output:
-Change Dir: /home/sequoyah/Documents/Research/ARC_lab/VIO/vioquad_ws/src/quad_control/acado/PAMPC/build/CMakeFiles/CMakeTmp
+Change Dir: /home/sequoyah/Documents/Research/ARC_lab/VIO/vioquad_ws/src/vioquad_land/acado/PAMPC/build/CMakeFiles/CMakeTmp
 
 Run Build Command(s):/usr/bin/make cmTC_f04de/fast && /usr/bin/make -f CMakeFiles/cmTC_f04de.dir/build.make CMakeFiles/cmTC_f04de.dir/build
-make[1]: Entering directory '/home/sequoyah/Documents/Research/ARC_lab/VIO/vioquad_ws/src/quad_control/acado/PAMPC/build/CMakeFiles/CMakeTmp'
+make[1]: Entering directory '/home/sequoyah/Documents/Research/ARC_lab/VIO/vioquad_ws/src/vioquad_land/acado/PAMPC/build/CMakeFiles/CMakeTmp'
 Building CXX object CMakeFiles/cmTC_f04de.dir/CMakeCXXCompilerABI.cpp.o
 /usr/lib/ccache/c++    -v -o CMakeFiles/cmTC_f04de.dir/CMakeCXXCompilerABI.cpp.o -c /usr/share/cmake-3.16/Modules/CMakeCXXCompilerABI.cpp
 Using built-in specs.
@@ -321,7 +321,7 @@ LIBRARY_PATH=/usr/lib/gcc/x86_64-linux-gnu/9/:/usr/lib/gcc/x86_64-linux-gnu/9/..
 COLLECT_GCC_OPTIONS='-v' '-rdynamic' '-o' 'cmTC_f04de' '-shared-libgcc' '-mtune=generic' '-march=x86-64'
  /usr/lib/gcc/x86_64-linux-gnu/9/collect2 -plugin /usr/lib/gcc/x86_64-linux-gnu/9/liblto_plugin.so -plugin-opt=/usr/lib/gcc/x86_64-linux-gnu/9/lto-wrapper -plugin-opt=-fresolution=/tmp/cc4u5shb.res -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lc -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc --build-id --eh-frame-hdr -m elf_x86_64 --hash-style=gnu --as-needed -export-dynamic -dynamic-linker /lib64/ld-linux-x86-64.so.2 -pie -z now -z relro -o cmTC_f04de /usr/lib/gcc/x86_64-linux-gnu/9/../../../x86_64-linux-gnu/Scrt1.o /usr/lib/gcc/x86_64-linux-gnu/9/../../../x86_64-linux-gnu/crti.o /usr/lib/gcc/x86_64-linux-gnu/9/crtbeginS.o -L/usr/lib/gcc/x86_64-linux-gnu/9 -L/usr/lib/gcc/x86_64-linux-gnu/9/../../../x86_64-linux-gnu -L/usr/lib/gcc/x86_64-linux-gnu/9/../../../../lib -L/lib/x86_64-linux-gnu -L/lib/../lib -L/usr/lib/x86_64-linux-gnu -L/usr/lib/../lib -L/usr/lib/gcc/x86_64-linux-gnu/9/../../.. CMakeFiles/cmTC_f04de.dir/CMakeCXXCompilerABI.cpp.o -lstdc++ -lm -lgcc_s -lgcc -lc -lgcc_s -lgcc /usr/lib/gcc/x86_64-linux-gnu/9/crtendS.o /usr/lib/gcc/x86_64-linux-gnu/9/../../../x86_64-linux-gnu/crtn.o
 COLLECT_GCC_OPTIONS='-v' '-rdynamic' '-o' 'cmTC_f04de' '-shared-libgcc' '-mtune=generic' '-march=x86-64'
-make[1]: Leaving directory '/home/sequoyah/Documents/Research/ARC_lab/VIO/vioquad_ws/src/quad_control/acado/PAMPC/build/CMakeFiles/CMakeTmp'
+make[1]: Leaving directory '/home/sequoyah/Documents/Research/ARC_lab/VIO/vioquad_ws/src/vioquad_land/acado/PAMPC/build/CMakeFiles/CMakeTmp'
 
 
 
@@ -348,10 +348,10 @@ Parsed CXX implicit include dir info from above output: rv=done
 
 Parsed CXX implicit link information from above output:
   link line regex: [^( *|.*[/\])(ld|CMAKE_LINK_STARTFILE-NOTFOUND|([^/\]+-)?ld|collect2)[^/\]*( |$)]
-  ignore line: [Change Dir: /home/sequoyah/Documents/Research/ARC_lab/VIO/vioquad_ws/src/quad_control/acado/PAMPC/build/CMakeFiles/CMakeTmp]
+  ignore line: [Change Dir: /home/sequoyah/Documents/Research/ARC_lab/VIO/vioquad_ws/src/vioquad_land/acado/PAMPC/build/CMakeFiles/CMakeTmp]
   ignore line: []
   ignore line: [Run Build Command(s):/usr/bin/make cmTC_f04de/fast && /usr/bin/make -f CMakeFiles/cmTC_f04de.dir/build.make CMakeFiles/cmTC_f04de.dir/build]
-  ignore line: [make[1]: Entering directory '/home/sequoyah/Documents/Research/ARC_lab/VIO/vioquad_ws/src/quad_control/acado/PAMPC/build/CMakeFiles/CMakeTmp']
+  ignore line: [make[1]: Entering directory '/home/sequoyah/Documents/Research/ARC_lab/VIO/vioquad_ws/src/vioquad_land/acado/PAMPC/build/CMakeFiles/CMakeTmp']
   ignore line: [Building CXX object CMakeFiles/cmTC_f04de.dir/CMakeCXXCompilerABI.cpp.o]
   ignore line: [/usr/lib/ccache/c++    -v -o CMakeFiles/cmTC_f04de.dir/CMakeCXXCompilerABI.cpp.o -c /usr/share/cmake-3.16/Modules/CMakeCXXCompilerABI.cpp]
   ignore line: [Using built-in specs.]

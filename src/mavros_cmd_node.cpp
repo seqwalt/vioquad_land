@@ -68,7 +68,7 @@ int main(int argc, char **argv)
     mavCmd.arming_client = nh.serviceClient<mavros_msgs::CommandBool>("mavros/cmd/arming");
     mavCmd.set_mode_client = nh.serviceClient<mavros_msgs::SetMode>("mavros/set_mode");
     // Service client for requesting the starting position and heading of the trajectory
-    mavCmd.init_setpnt_client = nh.serviceClient<quad_control::InitSetpoint>("initial_reference");
+    mavCmd.init_setpnt_client = nh.serviceClient<vioquad_land::InitSetpoint>("initial_reference");
     // Service client for requesting that the trajectory be published by trajectory_gen_node
     //      OR that the mpc control inputs be published by mpc_node
     mavCmd.streamimg_client = nh.serviceClient<std_srvs::Trigger>("stream_trigger");

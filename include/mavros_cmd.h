@@ -14,8 +14,8 @@
 
 #include <iostream>
 
-#include "quad_control/InitSetpoint.h"  // custom service
-#include "quad_control/FlatOutputs.h"   // custom message
+#include "vioquad_land/InitSetpoint.h"  // custom service
+#include "vioquad_land/FlatOutputs.h"   // custom message
 #include "tracking_controller.h"
 
 using namespace std;
@@ -210,7 +210,7 @@ class MavrosCmd {
 
         // Control Inputs are sent, after recieving reference setpoint
         // ctrl_mode is a parameter set during node start-up
-        void mavRefCallback(const quad_control::FlatOutputs &flatRefMsg) {
+        void mavRefCallback(const vioquad_land::FlatOutputs &flatRefMsg) {
             // Reference info
             mission_done = flatRefMsg.reached_goal;
 
@@ -284,7 +284,7 @@ class MavrosCmd {
 
         mavros_msgs::CommandBool arm_cmd;
         mavros_msgs::SetMode mavros_set_mode;
-        quad_control::InitSetpoint init_setpnt;
+        vioquad_land::InitSetpoint init_setpnt;
         std_srvs::Trigger start_stream;
 
         geometry_msgs::Pose home_pose;

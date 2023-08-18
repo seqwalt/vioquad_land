@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.0)
-project(quad_control)
+project(vioquad_land)
 
 #set(CMAKE_BUILD_TYPE Debug)
 
