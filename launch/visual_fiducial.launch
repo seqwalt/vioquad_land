@@ -1,8 +1,8 @@
 <launch>
 
     <!-- Down-facing camera -->
-    <arg name="cam_name" default="/pinhole_camera" />
-    <arg name="img_topic" default="image_raw" />
+    <arg name="cam_name" default="/csi_cam" />
+    <arg name="img_topic" default="image_rect" />
     
     <!-- Visual Fiducial node -->
     <node pkg="quad_control" name="visual_fiducial_node" type="visual_fiducial_node" output="screen" required="true" />

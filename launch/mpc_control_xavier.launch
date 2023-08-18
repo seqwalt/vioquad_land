@@ -1,27 +1,27 @@
 <launch>
 
     <!-- Arguments -->   
-    <arg name="traj_name" default="lab_search_quat" />   <!-- can only be a quaternion traj, not a flat output traj -->
+    <arg name="traj_name" default="short_lab_search_quat" />   <!-- can only be a quaternion traj, not a flat output traj -->
     <arg name="do_land" default="true" />                <!-- land on the AprilTag or don't land at all (req. manual land from transmitter) -->    
     <arg name="do_fov" default="true" />                 <!-- apply FOV constraints to min-snap traj generation -->
     <arg name="use_percep_cost" default="true" />        <!-- use PAMPC, by applying perception cost to MPC -->    
 
-    <arg name="land_spd_factor" default="0.45" />        <!-- Landing speed factor, smalling is longer landing time, 0 mean fixed landing speed idependent of current velocity -->
-    <arg name="land_spd_base" default="0.43" />          <!-- avg land spd if land_spd_factor = 0 -->
+    <arg name="land_spd_factor" default="0.4" />        <!-- Landing speed factor, smalling is longer landing time, 0 mean fixed landing speed idependent of current velocity -->
+    <arg name="land_spd_base" default="0.45" />          <!-- avg land spd if land_spd_factor = 0 -->
     <arg name="land_height" default="0.1" />             <!-- stop motors when camera this high (m) above landing pad -->    
     <arg name="mpc_time_horizon" default="2.0" />        <!-- time horizon of acado MPC. From ../acado/PAMPC/quadrotor_pampc.cpp --> 
     <arg name="num_acado_iters" default="3" />           <!-- number real-time mpc iterations (first loop-through will always be max(num_acado_iters, 3)) -->
     <arg name="tag_smoothing_factor" default="0.01" />   <!-- (0,1] AprilTag smoothing factor. 1 means no smoothing -->    
-    <arg name="half_horiz_fov" default="0.70" />         <!-- half of down-facing horizontal (width) FOV (radians) -->    
-    <arg name="half_vert_fov" default="0.50" />          <!-- half of down-facing vertical (height) FOV (radians) -->    
+    <arg name="half_horiz_fov" default="0.7" />         <!-- half of down-facing horizontal (width) FOV (radians) -->    
+    <arg name="half_vert_fov" default="0.5" />          <!-- half of down-facing vertical (height) FOV (radians) -->    
     
     <arg name="simulation" default="false" />
     <arg name="cam_name" default="/csi_cam" />           <!-- for down-facing camera -->
     <arg name="img_topic" default="image_rect" />        <!-- for down-facing camera -->
     <arg name="debug_mpc" default="false" />
-    <arg name="tran_BC_x" default="0.05" />              <!-- x translation from quad body to camera -->    
+    <arg name="tran_BC_x" default="0.055" />              <!-- x translation from quad body to camera -->    
     <arg name="tran_BC_y" default="0.0" />               <!-- y translation from quad body to camera -->    
-    <arg name="tran_BC_z" default="-0.05" />             <!-- z translation from quad body to camera --> 
+    <arg name="tran_BC_z" default="-0.055" />             <!-- z translation from quad body to camera --> 
     
     <arg name="thrust_map_a" default="0.0000383167609231034"/>   <!-- thrust map polynomial coefficients --> 
     <arg name="thrust_map_b" default="-0.0012743152731511435" />     

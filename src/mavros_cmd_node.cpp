@@ -29,12 +29,7 @@ int main(int argc, char **argv)
     } else if (ctrl_mode_str == "position"){
         mavCmd.ctrl_mode = MavrosCmd::POSITION;
     } else if (ctrl_mode_str == "mpc") {
-        if (mavCmd.sim_enable){
-            mavCmd.ctrl_mode = MavrosCmd::MPC;
-        } else {
-            ROS_ERROR_STREAM("MPC control not yet supported in hardware. Shutting down mavros_cmd_node ...");
-            ros::shutdown();
-        }
+        mavCmd.ctrl_mode = MavrosCmd::MPC;
     } else {
         ROS_ERROR_STREAM("mavros_cmd_node.cpp: No controller type named \'" << ctrl_mode_str << "\'. Shutting down mavros_cmd_node ...");
         ros::shutdown();

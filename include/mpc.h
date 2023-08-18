@@ -840,15 +840,10 @@ class MPC {
             // output: PX4-normalized thrust ([0,1])
             double a, b, c, d;
             
-            if (sim_enable_){
-                a = thrust_map_a_;
-                b = thrust_map_b_;
-                c = thrust_map_c_;
-                d = thrust_map_d_;
-            } else {
-                ROS_ERROR_STREAM("No thrust map for real quadcopter.");
-                ros::shutdown();
-            }
+            a = thrust_map_a_;
+            b = thrust_map_b_;
+            c = thrust_map_c_;
+            d = thrust_map_d_;
             
             double norm_th = a*th*th*th + b*th*th + c*th + d;
             if (th == 0.0) {
